@@ -14,12 +14,15 @@ interface ServerOptions {
 /**
  * @example
  * import io from 'socket.io'
- * import { applyRCMMiddlewareOnSocketIOServer } from 'remote-controllers-manager'
+ * import { applyRCMMiddleware } from 'remote-controllers-manager'
  *
  * const server = io.listen(3000)
- * applyRCMMiddlewareOnSocketIOServer(server)
+ * applyRCMMiddleware(server)
  */
-export function applyRCMMiddlewareOnSocketIOServer(io: IOServerType, options?: ServerOptions) {
+export function applyRCMMiddleware(io: IOServerType, options?: ServerOptions) {
+  if (io === undefined || (io.emit === undefined && io.sockets === undefined)) {
+    throw new Error('You must call the "applyRCMMiddleware" function with an instance of a socket.io server as the first argument.');
+  }
   const defaultOptions: ServerOptions = {
     maxConnectedControllers: Infinity,
     needsAMasterController: true,

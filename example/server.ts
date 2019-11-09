@@ -1,9 +1,9 @@
 import io from 'socket.io'
-import { applyRCMMiddlewareOnSocketIOServer } from '../src/server'
+import { applyRCMMiddleware } from '../src/server'
 import { green, blue } from 'colors'
 const server = io.listen(3000)
 
-applyRCMMiddlewareOnSocketIOServer(server, {
+applyRCMMiddleware(server, {
   ifMasterControllerDisconnects: 'passToNext',
   maxConnectedControllers: 3,
 })

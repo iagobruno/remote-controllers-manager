@@ -1,6 +1,6 @@
 {
   "name": "remote-controllers-manager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "repository": {
     "type" : "git",
@@ -11,7 +11,7 @@
   "files": [ "dist/**/*" ],
   "scripts": {
     "build": "tsc --declaration",
-    "prepare": "yarn run build"
+    "prepublishOnly": "yarn run build"
   },
   "dependencies": {
     "socket.io-client": "^2.3.0"

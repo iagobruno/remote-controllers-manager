@@ -4,18 +4,14 @@ const controller = new Controller({
   url: 'http://localhost:3000'
 })
 
-controller.onConnect(
-  handleConnectionChange,
-  (err) => console.log('%cUnable to connect to server!', 'color: red; font-weight: bold;', err),
-)
-controller.onDisconnect(handleConnectionChange)
+controller.onDeviceConnectionStateChange(handleConnectionChange)
 
 controller.onReady(() => {
   console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
 
   handleIsMasterControllerChange()
   controller.onMasterControllerIdChange(handleIsMasterControllerChange)
-  controller.onScreenConnectionChanges(handleIsScreenConnected)
+  controller.onScreenConnectionStateChange(handleIsScreenConnected)
 
   controller.onMessage((data, fromDeviceId) => {
     console.log(`Message from "${fromDeviceId}": "${data}"`)
@@ -24,7 +20,7 @@ controller.onReady(() => {
 
 
 function handleConnectionChange() {
-  document.querySelector('.isConnected').innerHTML = controller.isConnected ? `CONNECTED! Device ID = ${controller.getDeviceId()}` : 'DISCONNECTED'
+  document.querySelector('.isConnected').innerHTML = controller.isConnected ? `CONNECTED! Device ID = ${controller.deviceId}` : 'DISCONNECTED'
 }
 
 function handleIsMasterControllerChange() {
@@ -41,7 +37,7 @@ window.sendToScreen = () => {
 }
 // @ts-ignore
 window.sendToMaster = () => {
-  controller.unsafe_sendToMasterController('Hello master controller')
+  controller.sendToMasterController('Hello master controller')
 }
 // @ts-ignore
 window.sendToOthers = () => {

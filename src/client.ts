@@ -12,20 +12,24 @@ const defaultOptions: Omit<DefaultOptions, 'url'> = {
 type DeviceOptions = ControllerOptions & ScreenOptions
 
 class Device {
-  /** Unique id for this device. */
-  protected deviceId?: string;
-  protected masterControllerDeviceId: string | undefined = undefined;
+  /** Stable unique ID that represents this device. */
+  public deviceId?: string;
+  /**
+   * If null, means that has been configured on the server that does not require a master controller.
+   * @warning Can only be used within the "onReady" function because it's value is fetched asynchronous.
+   */
+  public masterControllerDeviceId: string | null | undefined = undefined;
   private handlerMasterControllerIdChange?: Function;
-  /** socket.io-client instance */
+  /** Instance of socket.io-client to be reused. */
   public socket: SocketIOClient.Socket;
 
   constructor(
     private kind: 'screen' | 'controller',
-    options?: DeviceOptions
+    options: DeviceOptions
   ) {
     options = Object.assign(defaultOptions, options)
 
-    this.deviceId = (kind === 'screen') ? 'screen' : options.deviceId ?? this.generateDeviceId()
+    this.deviceId = (this.kind === 'screen') ? 'screen' : options.deviceId ?? this.generateDeviceId()
     this.socket = io(options.url, {
       autoConnect: options.autoConnect,
       query: {
@@ -34,21 +38,20 @@ class Device {
       }
     })
 
-    this.socket.once('__master_controller_id', (resMasterCId: string) => {
-      this.masterControllerDeviceId = resMasterCId
-      if (kind === 'controller') {
+    const updateMasterControllerId = (masterDeviceId: string) => {
+      if (this.kind === 'controller') {
         // @ts-ignore
-        this.isMasterController = (this.deviceId === resMasterCId)
+        this.isMasterController = (this.deviceId === masterDeviceId)
       }
+      this.masterControllerDeviceId = masterDeviceId
+    }
+    this.socket.once('__master_controller_id', (resMasterCId: string) => {
+      updateMasterControllerId(resMasterCId)
       // @ts-ignore Defined in each subclass
       this.checkIsReady()
     })
-    this.socket.on('__master_controller_id_changed', (newMasterControllerId: string) => {
-      this.masterControllerDeviceId = newMasterControllerId
-      if (kind === 'controller') {
-        // @ts-ignore
-        this.isMasterController = (this.deviceId === newMasterControllerId)
-      }
+    this.socket.on('__master_controller_id_changed', (newMasterCId: string) => {
+      updateMasterControllerId(newMasterCId)
       this.handlerMasterControllerIdChange?.call(undefined)
     })
   }
@@ -68,62 +71,38 @@ class Device {
   /** Indicates if the API is ready to use.  */
   public isReady: boolean = false;
   protected handlerOnReady?: Function;
-  /** Add a listener to call back when the API is ready to use. */
+  /** Get called when the API is ready to use. */
   onReady(callback: Function) {
     if (this.isReady) return callback();
     this.handlerOnReady = callback
   }
 
-  /**
-   * When THIS device connects.
-   * @returns A function to remove the listener.
-   */
-  onConnect(callbackOnSuccess: Function, callbackOnConnectionFailure?: Function): UnsubscribeFunction {
-    if (this.isConnected) callbackOnSuccess()
-
-    this.socket.on('connect', () => {
-      if (callbackOnConnectionFailure) this.socket.off('error')
-      callbackOnSuccess()
-    })
-    if (callbackOnConnectionFailure) {
-      this.socket.once('error', (...err) => {
-        unsubscribe()
-        this.socket.disconnect()
-        callbackOnConnectionFailure(...err)
-      })
-    }
-
-    const unsubscribe = () => {
-      this.socket.off('connect', callbackOnSuccess)
-    }
-
-    return unsubscribe
-  }
-
-  /**
-   * When THIS device disconnects.
-   * @param callback
-   * @returns A function to remove the listener.
-   */
-  onDisconnect(callback: Function): UnsubscribeFunction {
-    if (!this.isConnected) callback()
-    this.socket.on('disconnect', callback)
-
-    return () => {
-      this.socket.off('disconnect', callback)
-    }
-  }
-
+  /** Whether or not the socket is connected to the server. */
   get isConnected() {
     return this.socket.connected
   }
 
-  /** @warning Can only be used within the "onReady" function because it's value is fetched asynchronous. */
-  getMasterControllerDeviceId() {
-    return this.masterControllerDeviceId
+  /**
+   * Get called when this device disconnects and reconnects to server.
+   * @returns A function to remove the listener.
+   */
+  onDeviceConnectionStateChange(callback: (state: boolean) => void): UnsubscribeFunction {
+    const handler = () => {
+      callback(this.socket.connected)
+    }
+    this.socket.on('connect', handler)
+    this.socket.on('disconnect', handler)
+
+    return () => {
+      this.socket.off('connect', handler)
+      this.socket.off('disconnect', handler)
+    }
   }
 
-  /** @returns A function to remove the listener. */
+  /**
+   * Get called when the server sets another controller as the master.
+   * @returns A function to remove the listener.
+   */
   onMasterControllerIdChange(callback: Function): UnsubscribeFunction {
     this.handlerMasterControllerIdChange = callback
 
@@ -133,12 +112,12 @@ class Device {
   }
 
   /**
-   * @experimental I don't know if this function is useful or if it opens security vulnerabilities.
-   *
    * Send message to master controller.
    * @template D = Type of the first argument "data".
    */
-  unsafe_sendToMasterController<D = any>(data: D) {
+  sendToMasterController<D = any>(data: D) {
+    if (!this.masterControllerDeviceId) return;
+
     this.socket.emit('sendTo', {
       recipientDevice: this.masterControllerDeviceId,
       data,
@@ -146,7 +125,7 @@ class Device {
   }
 
   /**
-   * Listen for new messages from other device.
+   * Get called when a new message arrives from another device.
    * @returns A function to remove the listener.
    * @template D = Type of the argument "data".
    */
@@ -166,10 +145,8 @@ interface ScreenOptions extends DefaultOptions {}
 
 export class Screen extends Device {
   private connectedControllers: Set<string> | null = null;
-  private handlerControllerConnection?: Function;
-  private handlerControllerDisconnects?: Function;
 
-  constructor(options?: ScreenOptions) {
+  constructor(options: ScreenOptions) {
     super('screen', options)
 
     this.socket.once('__all_connected_controllers_id', (ids: string[]) => {
@@ -179,12 +156,10 @@ export class Screen extends Device {
 
     this.socket.on('__new_controller', (deviceId) => {
       this.connectedControllers?.add(deviceId)
-      this.handlerControllerConnection?.call(undefined, deviceId)
     })
 
     this.socket.on('__controller_disconnect', (deviceId) => {
       this.connectedControllers?.delete(deviceId)
-      this.handlerControllerDisconnects?.call(undefined, deviceId)
     })
 
     this.socket.once('connect', this.checkIsReady.bind(this))
@@ -203,7 +178,7 @@ export class Screen extends Device {
   }
 
   /**
-   * Returns an array with the id of all connected controllers.
+   * @returns An array with the id of all connected controllers.
    * @warning Can only be used within the "onReady" function because it's value is fetched asynchronous.
    */
   getAllControllerDeviceIds() {
@@ -211,30 +186,36 @@ export class Screen extends Device {
   }
 
   /** @warning Can only be used within the "onReady" function because it's value is fetched asynchronous. */
-  getTotalOfConnectedControllers() {
+  get totalOfConnectedControllers() {
     return this.connectedControllers?.size
   }
 
-  /** @returns A function to remove the listener. */
-  onNewControllerConnects( callback: (deviceId: string) => void, ): UnsubscribeFunction {
-    this.handlerControllerConnection = callback
+  /**
+   * Gets called when a controller connects.
+   * @returns A function to remove the listener.
+   */
+  onConnect(callback: (deviceId: string) => void): UnsubscribeFunction {
+    this.socket.on('__new_controller', callback)
 
     return () => {
-      this.handlerControllerConnection = undefined
-    }
-  }
-
-  /** @returns A function to remove the listener. */
-  onControllerDisconnects( callback: (deviceId: string) => void, ): UnsubscribeFunction {
-    this.handlerControllerDisconnects = callback
-
-    return () => {
-      this.handlerControllerDisconnects = undefined
+      this.socket.off('__new_controller', callback)
     }
   }
 
   /**
-   * Send message to ALL connected controllers.
+   * Gets called when a controller disconnects.
+   * @returns A function to remove the listener.
+   */
+  onDisconnect(callback: (deviceId: string) => void): UnsubscribeFunction {
+    this.socket.on('__controller_disconnect', callback)
+
+    return () => {
+      this.socket.off('__controller_disconnect', callback)
+    }
+  }
+
+  /**
+   * Send message to all connected controllers.
    * @template D = Type of the first argument "data".
    */
   broadcastToControllers<D = any>(data: D) {
@@ -260,18 +241,13 @@ interface ControllerOptions extends DefaultOptions {
 }
 
 export class Controller extends Device {
-  /**
-   * Indicates if this was the first control connected
-   * @warning Can only be used within the "onReady" function because it's value is fetched asynchronous.
-   */
+  /** @warning Can only be used within the "onReady" function because it's value is fetched asynchronous. */
   public isMasterController: boolean | null = null;
-  /**
-   * @warning Can only be used within the "onReady" function because it's value is fetched asynchronous.
-   */
+  /** @warning Can only be used within the "onReady" function because it's value is fetched asynchronous. */
   public isScreenConnected: boolean | null = null;
   private handlerScreenConnectionChange?: Function;
 
-  constructor(options?: ControllerOptions) {
+  constructor(options: ControllerOptions) {
     super('controller', options as any)
 
     this.socket.once('__screen_is_connected', (res) => {
@@ -281,11 +257,11 @@ export class Controller extends Device {
 
     this.socket.on('__screen_connected', () => {
       this.isScreenConnected = true
-      this.handlerScreenConnectionChange?.call(undefined)
+      this.handlerScreenConnectionChange?.call(undefined, this.isScreenConnected)
     })
     this.socket.on('__screen_disconnect', () => {
       this.isScreenConnected = false
-      this.handlerScreenConnectionChange?.call(undefined)
+      this.handlerScreenConnectionChange?.call(undefined, this.isScreenConnected)
     })
 
     this.socket.once('connect', this.checkIsReady.bind(this))
@@ -304,24 +280,16 @@ export class Controller extends Device {
     }
   }
 
-  /** Returns the unique id that identifies this device from others. */
-  getDeviceId() {
-    return this.deviceId
-  }
-
   /**
-   * Notify when the screen disconnects from the server or reconnects.
+   * Notify when the screen disconnects or reconnects from the server.
    * @returns A function to remove the listener.
    *
    * @example
-   * controller.onScreenConnectionChanges(() => {
-   *   if (controller.isScreenConnected) {
-   *     // ...
-   *   } else { }
+   * controller.onScreenConnectionStateChange(isConnected => {
+   *   // ...
    * })
    */
-  onScreenConnectionChanges(callback: Function): UnsubscribeFunction {
-    callback()
+  onScreenConnectionStateChange(callback: (state: boolean) => void): UnsubscribeFunction {
     this.handlerScreenConnectionChange = callback
 
     return () => {

@@ -37,11 +37,11 @@ yarn add https://github.com/iagobruno/remote-controllers-manager socket.io
 
 ```js
 import io from 'socket.io'
-import { applyRCMMiddlewareOnSocketIOServer } from 'remote-controllers-manager'
+import { applyRCMMiddleware } from 'remote-controllers-manager'
 import { green, blue } from 'colors'
 const server = io.listen(3000)
 
-applyRCMMiddlewareOnSocketIOServer(server, {
+applyRCMMiddleware(server, {
   // You can configure some behaviors.
   maxConnectedControllers: 4,
   needsAMasterController: true,
@@ -105,7 +105,7 @@ screen.onMessage(({ eventName, data }) => {
   }
 })
 
-screen.onNewControllerConnects(() => {
+screen.onConnect(() => {
   screen.broadcastToControllers({ eventName: 'new_controller' })
 })
 ```
@@ -115,5 +115,3 @@ You can check the client API in [this file](./src/client.ts).
 ## License
 
 MIT License
-
-Copyright (c) 2019 Iago Bruno

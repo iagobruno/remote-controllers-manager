@@ -4,18 +4,14 @@ const screen = new Screen({
   url: 'http://localhost:3000'
 })
 
-screen.onConnect(
-  handleConnectionChange,
-  (err) => console.log('%cUnable to connect to server!', 'color: red; font-weight: bold;', err),
-)
-screen.onDisconnect(handleConnectionChange)
+screen.onDeviceConnectionStateChange(handleConnectionChange)
 
 screen.onReady(() => {
   console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
 
   handleControllersChange()
-  screen.onNewControllerConnects(handleControllersChange)
-  screen.onControllerDisconnects(handleControllersChange)
+  screen.onConnect(handleControllersChange)
+  screen.onDisconnect(handleControllersChange)
   screen.onMasterControllerIdChange(handleControllersChange)
 
   screen.onMessage((data, fromDeviceId) => {
@@ -28,7 +24,7 @@ function handleConnectionChange() {
 }
 
 function handleControllersChange() {
-  document.querySelector('.totalOfControllers')!.innerHTML = `${screen.getTotalOfConnectedControllers()} Controllers | Master controller id = ${screen.getMasterControllerDeviceId()}`
+  document.querySelector('.totalOfControllers')!.innerHTML = `${screen.totalOfConnectedControllers} Controllers | Master controller id = ${screen.masterControllerDeviceId}`
 }
 
 // @ts-ignore
@@ -37,5 +33,5 @@ window.broadcast = () => {
 }
 // @ts-ignore
 window.sendToMaster = () => {
-  screen.unsafe_sendToMasterController('Hello master controller!')
+  screen.sendToMasterController('Hello master controller!')
 }
