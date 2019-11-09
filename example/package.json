@@ -1,0 +1,18 @@
+{
+  "private": true,
+  "scripts": {
+    "dev:client": "parcel clients/controller.html clients/screen.html",
+    "dev:server": "ts-node-dev server.ts --project ../tsconfig.json"
+  },
+  "dependencies": {
+    "@types/node": "^12.12.6",
+    "colors": "^1.4.0",
+    "parcel-bundler": "^1.12.4",
+    "socket.io": "^2.3.0",
+    "ts-node-dev": "^1.0.0-pre.44",
+    "typescript": "^3.7.2"
+  },
+  "browserslist": [
+    "last 1 Chrome versions"
+  ]
+}

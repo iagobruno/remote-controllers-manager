@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Controller Tab</title>
+</head>
+<body>
+  <div class="isConnected"></div>
+  <div class="isMasterController"></div>
+  <div class="isScreenConnected"></div>
+
+  <button onClick="sendToScreen()">Send message to screen</button>
+  <button onClick="sendToMaster()">Send message to master controller</button>
+  <button onClick="sendToOthers()">Send message to other devices</button>
+
+  <script src="./controller.ts"></script>
+</body>
+</html>
