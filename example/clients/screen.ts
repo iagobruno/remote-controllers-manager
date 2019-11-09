@@ -1,10 +1,8 @@
 import { Screen } from '../../src'
 
 const screen = new Screen({
-  url: 'http://localhost:3000'
+  uri: 'http://localhost:3000'
 })
-
-screen.onDeviceConnectionStateChange(handleConnectionChange)
 
 screen.onReady(() => {
   console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
@@ -18,6 +16,8 @@ screen.onReady(() => {
     console.log(`Message from "${fromDeviceId}": "${data}"`)
   })
 })
+
+screen.onDeviceConnectionStateChange(handleConnectionChange)
 
 function handleConnectionChange() {
   document.querySelector('.isConnected')!.innerHTML = screen.isConnected ? 'CONNECTED' : 'DISCONNECTED'

@@ -8,12 +8,12 @@ Examples of apps I have in mind:
 
 - Peer-to-peer games.
 - TV web app interfaces.
-- Collaborative playlists for a party.
+- Collaborative playlists for parties.
 
 ## Features
 
 - ✅ Allows multiple controllers to connect to the screen.
-- ✅ Set a limit of controllers that can connect simultaneously.
+- ✅ Limit the number of controllers connected simultaneously.
 - ✅ Define if you need a master controller and what happens if it disconnects.
 - ✅ Receive message from other devices.
 - ✅ Broadcast message from screen to all controllers.
@@ -25,7 +25,7 @@ Examples of apps I have in mind:
 - ❌ Allow multiple separate rooms.
 - ❌ Allow multiple screens per room.
 
-## How to getting started
+## Getting started
 
 1. Install this repository as a dependency (yes, it's possible):
 
@@ -59,7 +59,7 @@ console.log(green('⚡ Listening on port http://localhost:3000'))
 import { Screen } from 'remote-controllers-manager'
 
 const screen = new Screen({
-  url: 'http://localhost:3000'
+  uri: 'http://localhost:3000'
 })
 
 screen.onReady(() => {
@@ -76,7 +76,7 @@ screen.onReady(() => {
 import { Controller } from 'remote-controllers-manager'
 
 const controller = new Controller({
-  url: 'http://localhost:3000'
+  uri: 'http://localhost:3000'
 })
 
 controller.onReady(() => {

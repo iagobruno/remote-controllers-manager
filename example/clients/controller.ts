@@ -1,10 +1,8 @@
 import { Controller } from '../../src'
 
 const controller = new Controller({
-  url: 'http://localhost:3000'
+  uri: 'http://localhost:3000'
 })
-
-controller.onDeviceConnectionStateChange(handleConnectionChange)
 
 controller.onReady(() => {
   console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
@@ -18,6 +16,7 @@ controller.onReady(() => {
   })
 })
 
+controller.onDeviceConnectionStateChange(handleConnectionChange)
 
 function handleConnectionChange() {
   document.querySelector('.isConnected').innerHTML = controller.isConnected ? `CONNECTED! Device ID = ${controller.deviceId}` : 'DISCONNECTED'
