@@ -1,0 +1,28 @@
+{
+  "name": "remote-controllers-manager",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type" : "git",
+    "url" : "https://github.com/iagobruno/remote-controllers-manager.git"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [ "dist/**/*" ],
+  "scripts": {
+    "build": "tsc --declaration",
+    "prepare": "yarn run build"
+  },
+  "dependencies": {
+    "socket.io-client": "^2.3.0"
+  },
+  "optionalDependencies": {
+    "socket.io": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^12.12.6",
+    "@types/socket.io": "^2.1.4",
+    "@types/socket.io-client": "^1.4.32",
+    "typescript": "^3.7.2"
+  }
+}
