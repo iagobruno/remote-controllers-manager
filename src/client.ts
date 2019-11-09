@@ -133,6 +133,19 @@ class Device {
   }
 
   /**
+   * @experimental I don't know if this function is useful or if it opens security vulnerabilities.
+   *
+   * Send message to master controller.
+   * @template D = Type of the first argument "data".
+   */
+  unsafe_sendToMasterController<D = any>(data: D) {
+    this.socket.emit('sendTo', {
+      recipientDevice: this.masterControllerDeviceId,
+      data,
+    })
+  }
+
+  /**
    * Listen for new messages from other device.
    * @returns A function to remove the listener.
    * @template D = Type of the argument "data".
@@ -349,19 +362,6 @@ export class Controller extends Device {
   unsafe_sendToAnotherController<D = any>(deviceId: string, data: D) {
     this.socket.emit('sendTo', {
       recipientDevice: deviceId,
-      data,
-    })
-  }
-
-  /**
-   * @experimental I don't know if this function is useful or if it opens security vulnerabilities.
-   *
-   * Send message to master controller.
-   * @template D = Type of the first argument "data".
-   */
-  unsafe_sendToMasterController<D = any>(data: D) {
-    this.socket.emit('sendTo', {
-      recipientDevice: this.masterControllerDeviceId,
       data,
     })
   }
