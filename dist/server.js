@@ -1,5 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+var defaultOptions = {
+    allowMultipleRooms: true,
+    maxControllersPerRoom: Infinity,
+    eachRoomNeedsAMasterController: true,
+    ifMasterControllerDisconnects: 'waitReconnect',
+    limitOfConnectionsToServer: Infinity,
+};
+var rooms = {};
+var numberOfDevicesConnected = 0;
 /**
  * @example
  * import io from 'socket.io'
@@ -8,38 +17,45 @@ Object.defineProperty(exports, "__esModule", { value: true });
  * const server = io.listen(3000)
  * applyRCMMiddleware(server)
  */
-function applyRCMMiddleware(io, options) {
+function applyRCMMiddleware(io, inputOptions) {
     if (io === undefined || (io.emit === undefined && io.sockets === undefined)) {
         throw new Error('You must call the "applyRCMMiddleware" function with an instance of a socket.io server as the first argument.');
     }
-    var defaultOptions = {
-        maxConnectedControllers: Infinity,
-        needsAMasterController: true,
-        ifMasterControllerDisconnects: 'waitHimReconnect',
-    };
-    options = Object.assign(defaultOptions, options);
-    var screen = null;
-    var controllers = new Map();
-    var masterControllerId = null;
-    // Validate new connections
+    var options = Object.assign(defaultOptions, inputOptions);
+    // Validate ne connections
     io.use(function (socket, next) {
-        var _a;
-        var _b = socket.handshake.query, deviceKind = _b.deviceKind, deviceId = _b.deviceId;
-        if (deviceKind === undefined || typeof deviceKind !== 'string') {
-            return next(new Error('Invalid or not set "deviceKind".'));
+        var _a, _b;
+        var _c = socket.handshake.query, deviceKind = _c.deviceKind, deviceId = _c.deviceId, roomIdToConnect = _c.roomIdToConnect;
+        if (numberOfDevicesConnected >= options.limitOfConnectionsToServer) {
+            return next(new Error('The limit of devices connected to the server has been reached.'));
         }
-        if (deviceKind === 'screen' && screen !== null) {
-            return next(new Error('There is already a screen connected.'));
+        if (deviceKind === undefined || typeof deviceKind !== 'string')
+            return next(new Error('Invalid or not set "deviceKind".'));
+        if (deviceId === undefined || typeof deviceId !== 'string')
+            return next(new Error('Invalid or not set "deviceId".'));
+        if (deviceKind === 'screen') {
+            if (options.allowMultipleRooms === false &&
+                Object.keys(rooms).length >= 1 &&
+                Object.keys(rooms)[0] !== deviceId) {
+                return next(new Error('The limit of rooms in the server has been reached.'));
+            }
+            if ((_b = (_a = rooms[deviceId]) === null || _a === void 0 ? void 0 : _a.screenSocket, (_b !== null && _b !== void 0 ? _b : null)) !== null) {
+                return next(new Error('There is already a screen connected to this room.'));
+            }
         }
         if (deviceKind === 'controller') {
-            if (controllers.size >= ((_a = options) === null || _a === void 0 ? void 0 : _a.maxConnectedControllers)) {
-                return next(new Error('Maximum number of connected controllers was reached.'));
+            if (roomIdToConnect === undefined) {
+                return next(new Error('You must specify the room id you want to connect to.'));
             }
-            if (deviceId === undefined || typeof deviceId !== 'string') {
-                return next(new Error('Invalid or not set "deviceId".'));
+            var room = rooms[roomIdToConnect];
+            if (!room) {
+                return next(new Error('This room doesn’t exist.'));
             }
-            if (controllers.has(deviceId)) {
-                return next(new Error('This controller is already connected.'));
+            if (room.controllers.length >= options.maxControllersPerRoom) {
+                return next(new Error('The limit of connected controllers per room has been reached.'));
+            }
+            if (room.controllers.find(function (ctrl) { return ctrl.deviceId === deviceId; }) !== undefined) {
+                return next(new Error('This controller is already connected in this room.'));
             }
         }
         // Allow access
@@ -47,62 +63,112 @@ function applyRCMMiddleware(io, options) {
     });
     io.on('connection', function (socket) {
         var _a, _b;
-        var _c = socket.handshake.query, deviceKind = _c.deviceKind, deviceId = _c.deviceId;
+        numberOfDevicesConnected++;
+        var _c = socket.handshake.query, deviceKind = _c.deviceKind, deviceId = _c.deviceId, roomIdToConnect = _c.roomIdToConnect;
+        /** Instance of room the device connected to. */
+        var room;
         if (deviceKind === 'screen') {
-            screen = socket;
-            socket.emit('__all_connected_controllers_id', Array.from(controllers.keys()));
-            // Notify all controllers
-            controllers.forEach(function (control) { return control.emit('__screen_connected'); });
+            room = findOrCreateRoom(deviceId);
+            room.screenSocket = socket;
+            room.screenSocket.emit('__all_connected_controllers_id', room.controllers.map(function (ctrl) { return ctrl.deviceId; }));
+            // Notify all controllers in this room
+            room.controllers.forEach(function (ctrl) { return ctrl.socket.emit('__screen_connected'); });
         }
         else if (deviceKind === 'controller') {
-            controllers.set(deviceId, socket);
-            socket.emit('__screen_is_connected', screen !== null);
+            room = rooms[roomIdToConnect];
+            (_a = room.screenSocket) === null || _a === void 0 ? void 0 : _a.emit('__new_controller', deviceId);
+            room.controllers.push({
+                // @ts-ignore
+                deviceId: deviceId,
+                socket: socket
+            });
+            socket.emit('__screen_is_connected', room.screenSocket !== null);
             // If it's the first controller to connect, set it as the master
-            if (((_a = options) === null || _a === void 0 ? void 0 : _a.needsAMasterController) === true && masterControllerId === null) {
-                masterControllerId = deviceId;
-                io.emit('__master_controller_id_changed', masterControllerId);
+            if (((_b = options) === null || _b === void 0 ? void 0 : _b.eachRoomNeedsAMasterController) && room.masterControllerDeviceId === null) {
+                room.masterControllerDeviceId = deviceId;
+                // Notify all devices in this room about the new master controller
+                sendMessageToAllDevicesInTheRoom(room, room.masterControllerDeviceId);
             }
-            (_b = screen) === null || _b === void 0 ? void 0 : _b.emit('__new_controller', deviceId);
         }
-        socket.emit('__master_controller_id', masterControllerId);
+        socket.emit('__master_controller_id', room.masterControllerDeviceId);
         socket.on('broadcast', function (_a) {
             var data = _a.data, exceptFor = _a.exceptFor;
-            controllers.forEach(function (controllerSocket, controllerId) {
-                if (exceptFor && controllerId === exceptFor)
+            room.controllers.forEach(function (ctrl) {
+                if (exceptFor && ctrl.deviceId === exceptFor)
                     return;
-                controllerSocket.emit('message', data, deviceId);
+                ctrl.socket.emit('message', data, deviceId);
             });
         });
         socket.on('sendTo', function (_a) {
             var recipientDevice = _a.recipientDevice, data = _a.data;
             var _b, _c;
             if (recipientDevice === 'screen') {
-                return (_b = screen) === null || _b === void 0 ? void 0 : _b.emit('message', data, deviceId);
+                (_b = room.screenSocket) === null || _b === void 0 ? void 0 : _b.emit('message', data, deviceId);
+                return;
             }
-            var device = controllers.get(recipientDevice);
-            (_c = device) === null || _c === void 0 ? void 0 : _c.emit('message', data, deviceId);
+            if (recipientDevice === 'master_controller') {
+                recipientDevice = room.masterControllerDeviceId;
+            }
+            var device = room.controllers.find(function (ctrl) { return ctrl.deviceId === recipientDevice; });
+            (_c = device) === null || _c === void 0 ? void 0 : _c.socket.emit('message', data, deviceId);
         });
         socket.on('disconnect', function () {
-            var _a, _b, _c, _d, _e, _f;
+            var _a, _b, _c;
+            numberOfDevicesConnected--;
             if (deviceKind === 'screen') {
-                screen = null;
-                controllers.forEach(function (control) {
-                    control.emit('__screen_disconnect');
+                room.screenSocket = null;
+                room.controllers.forEach(function (ctrl) {
+                    ctrl.socket.emit('__screen_disconnect');
                 });
             }
             else if (deviceKind === 'controller') {
-                controllers.delete(deviceId);
-                (_a = screen) === null || _a === void 0 ? void 0 : _a.emit('__controller_disconnect', deviceId);
-                // what to do when master controller disconnects
-                if (deviceId === masterControllerId && ((_b = options) === null || _b === void 0 ? void 0 : _b.needsAMasterController)) {
-                    if (((_c = options) === null || _c === void 0 ? void 0 : _c.ifMasterControllerDisconnects) === 'passToNext') {
-                        masterControllerId = (_d = controllers.keys().next().value, (_d !== null && _d !== void 0 ? _d : null));
-                        (_e = io) === null || _e === void 0 ? void 0 : _e.emit('__master_controller_id_changed', masterControllerId);
+                room.controllers = room.controllers.filter(function (ctrl) { return ctrl.deviceId !== deviceId; });
+                (_a = room.screenSocket) === null || _a === void 0 ? void 0 : _a.emit('__controller_disconnect', deviceId);
+                // What to do when master controller disconnects
+                if (deviceId === room.masterControllerDeviceId && options.eachRoomNeedsAMasterController) {
+                    if (options.ifMasterControllerDisconnects === 'waitReconnect') {
+                        /* do nothing */
                     }
-                    else if (((_f = options) === null || _f === void 0 ? void 0 : _f.ifMasterControllerDisconnects) === 'waitHimReconnect') { /* do nothing */ }
+                    else if (options.ifMasterControllerDisconnects === 'passToNext') {
+                        room.masterControllerDeviceId = (_c = (_b = room.controllers[0]) === null || _b === void 0 ? void 0 : _b.deviceId, (_c !== null && _c !== void 0 ? _c : null));
+                        // Notify all devices in this room about the new master controller
+                        sendMessageToAllDevicesInTheRoom(room, room.masterControllerDeviceId);
+                    }
                 }
             }
+            checkIfCanDeleteTheRoom(room);
         });
     });
 }
 exports.applyRCMMiddleware = applyRCMMiddleware;
+function findOrCreateRoom(ID) {
+    var roomAlreadyCreated = rooms[ID] !== undefined;
+    if (roomAlreadyCreated)
+        return rooms[ID];
+    var newRoom = {
+        ID: ID,
+        screenSocket: null,
+        masterControllerDeviceId: null,
+        controllers: [],
+    };
+    rooms[ID] = newRoom;
+    return newRoom;
+}
+/** It's like the garbage collector. It checks if there is at least one device connected to the room, if not, the room is removed. */
+function checkIfCanDeleteTheRoom(room) {
+    if (typeof room === 'string')
+        room = rooms[room];
+    var numberOfDevices = room.controllers.length + (room.screenSocket === null ? 0 : 1);
+    if (numberOfDevices === 0) {
+        delete rooms[room.ID];
+    }
+}
+function sendMessageToAllDevicesInTheRoom(room, data) {
+    var _a;
+    if (typeof room === 'string')
+        room = rooms[room];
+    (_a = room.screenSocket) === null || _a === void 0 ? void 0 : _a.emit('__master_controller_id_changed', data);
+    room.controllers.forEach(function (ctrl) {
+        ctrl.socket.emit('__master_controller_id_changed', data);
+    });
+}

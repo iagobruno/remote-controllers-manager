@@ -4,6 +4,9 @@ const controller = new Controller({
   uri: 'http://localhost:3000'
 })
 
+// @ts-ignore
+window.socket = controller.socket
+
 controller.onReady(() => {
   console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
 
@@ -30,6 +33,12 @@ function handleIsScreenConnected() {
   document.querySelector('.isScreenConnected').innerHTML = controller.isScreenConnected ? 'The screen IS connected' : 'The screen IS NOT connected'
 }
 
+// @ts-ignore
+window.connect = () => {
+  const roomId = prompt('Enter the room ID. (You can get the id on the screen tab)')
+  controller.connectToRoom(roomId)
+    .catch((err) => console.error('ERROR AO SE CONECTAR!', err))
+}
 // @ts-ignore
 window.sendToScreen = () => {
   controller.sendToScreen('Hello screen')

@@ -2,7 +2,7 @@
 
 This package creates an abstraction on top of socket.io to easily manage devices (smartphones for example) that can act as a remote controller of you web app, similar to how [AirConsole](https://airconsole.com) works.
 
-**This is a super experimental package** ⚠, I'm building it for personal usage in a project but if it gets good enough may I publish to npm and make some examples.
+**This is a super experimental package** ⚠, I'm building it for personal usage in a project but if it gets good enough may I publish to npm and make some demos.
 
 Examples of apps I have in mind:
 
@@ -12,7 +12,7 @@ Examples of apps I have in mind:
 
 ## Features
 
-- ✅ Allows multiple controllers to connect to the screen.
+- ✅ Allows multiple controllers to connect to a screen.
 - ✅ Limit the number of controllers connected simultaneously.
 - ✅ Define if you need a master controller and what happens if it disconnects.
 - ✅ Receive message from other devices.
@@ -22,8 +22,7 @@ Examples of apps I have in mind:
 - ✅ Broadcast message from a controller to other controllers.
 - ✅ Check the connection state of the screen.
 - ✅ Get total of connected controllers.
-- ❌ Allow multiple separate rooms.
-- ❌ Allow multiple screens per room.
+- ✅ Allow multiple separate rooms.
 
 ## Getting started
 
@@ -43,9 +42,9 @@ const server = io.listen(3000)
 
 applyRCMMiddleware(server, {
   // You can configure some behaviors.
-  maxConnectedControllers: 4,
-  needsAMasterController: true,
-  ifMasterControllerDisconnects: 'waitHimReconnect',
+  maxControllersPerRoom: 4,
+  eachRoomNeedsAMasterController: true,
+  ifMasterControllerDisconnects: 'waitReconnect',
 })
 
 console.log(green('⚡ Listening on port http://localhost:3000'))
@@ -64,6 +63,9 @@ const screen = new Screen({
 
 screen.onReady(() => {
   console.log('Successfully connected to server!')
+  
+  // Show screen id so user can connect
+  document.body.innerHTML = `SCREEN_ID = ${screen.deviceId}`
 })
 ```
 
@@ -82,11 +84,15 @@ const controller = new Controller({
 controller.onReady(() => {
   console.log('Successfully joined to the room!')
 })
+
+function connect() {
+  controller.connectToRoom('<SCREEN_ID>')
+}
 ```
 
 Just that, the package will take care of managing all controllers that connect in the room.
 
-You can now easily send messages to all devices connected, like that:
+You can now easily send messages to all connected devices, like that:
 
 ```js
 // controller.js

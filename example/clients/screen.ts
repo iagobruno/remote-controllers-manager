@@ -4,9 +4,15 @@ const screen = new Screen({
   uri: 'http://localhost:3000'
 })
 
+// @ts-ignore
+window.socket = screen.socket
+
+screen.socket.on('error', console.log)
+
 screen.onReady(() => {
   console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
 
+  screen.onDeviceConnectionStateChange(handleConnectionChange)
   handleControllersChange()
   screen.onConnect(handleControllersChange)
   screen.onDisconnect(handleControllersChange)
@@ -17,10 +23,8 @@ screen.onReady(() => {
   })
 })
 
-screen.onDeviceConnectionStateChange(handleConnectionChange)
-
 function handleConnectionChange() {
-  document.querySelector('.isConnected')!.innerHTML = screen.isConnected ? 'CONNECTED' : 'DISCONNECTED'
+  document.querySelector('.isConnected')!.innerHTML = screen.isConnected ? `CONNECTED! Room ID = ${screen.deviceId}` : 'DISCONNECTED'
 }
 
 function handleControllersChange() {
