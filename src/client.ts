@@ -59,7 +59,7 @@ class Device {
     } else {
       const newDeviceId = (this.kind === 'screen')
         ? Math.random().toString().substring(3, 9)
-        : Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9)
+        : Date.now() + Math.random().toString(36).substr(2, 9)
       localStorage.setItem('uq_device_id', newDeviceId)
       return newDeviceId
     }
