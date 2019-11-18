@@ -1,4 +1,4 @@
-import { Socket, Server as IOServerType } from 'socket.io'
+import { Socket, Server as IOServer } from 'socket.io'
 
 interface ServerOptions {
   /**
@@ -13,12 +13,12 @@ interface ServerOptions {
   maxControllersPerRoom: number;
   /**
    * Self explanatory. Indicates the limit of simultaneously connected devices to the server.
-   * Use this to prevent the server from becoming overloaded.
+   * Use this to prevent the server becoming overloaded.
    * @default Infinity
    */
   limitOfConnectionsToServer: number;
   /**
-   * A master controller is a controller that can change room settings, execute sensitive commands or finish the game for example.
+   * A master controller is a device that can change room settings, execute sensitive commands or finish the game for example.
    * @default true
    */
   eachRoomNeedsAMasterController: boolean;
@@ -48,14 +48,14 @@ let numberOfDevicesConnected = 0
  * const server = io.listen(3000)
  * applyRCMMiddleware(server)
  */
-export function applyRCMMiddleware(io: IOServerType, inputOptions?: Partial<ServerOptions>) {
+export function applyRCMMiddleware(io: IOServer, opts?: Partial<ServerOptions>) {
   if (io === undefined || (io.emit === undefined && io.sockets === undefined)) {
     throw new Error('You must call the "applyRCMMiddleware" function with an instance of a socket.io server as the first argument.');
   }
 
-  const options = Object.assign(defaultOptions, inputOptions)
+  const options = Object.assign(defaultOptions, opts)
 
-  // Validate ne connections
+  // Validate new connections
   io.use((socket, next) => {
     const { deviceKind, deviceId, roomIdToConnect } = socket.handshake.query as HandshakeQuery
 
@@ -91,7 +91,8 @@ export function applyRCMMiddleware(io: IOServerType, inputOptions?: Partial<Serv
       if (room.controllers.length >= options.maxControllersPerRoom) {
         return next(new Error('The limit of connected controllers per room has been reached.'))
       }
-      if (room.controllers.find(ctrl => ctrl.deviceId === deviceId) !== undefined) {
+      const isAlreadyConnected = room.controllers.find(ctrl => ctrl.deviceId === deviceId) !== undefined
+      if (isAlreadyConnected) {
         return next(new Error('This controller is already connected in this room.'))
       }
     }
@@ -103,7 +104,7 @@ export function applyRCMMiddleware(io: IOServerType, inputOptions?: Partial<Serv
   io.on('connection', (socket) => {
     numberOfDevicesConnected++
     const { deviceKind, deviceId, roomIdToConnect } = socket.handshake.query as HandshakeQuery
-    /** Instance of room the device connected to. */
+    /** Instance of room the device is connected to. */
     let room: Room;
 
     if (deviceKind === 'screen') {
@@ -119,7 +120,6 @@ export function applyRCMMiddleware(io: IOServerType, inputOptions?: Partial<Serv
 
       room.screenSocket?.emit('__new_controller', deviceId)
       room.controllers.push({
-        // @ts-ignore
         deviceId,
         socket: socket
       })
@@ -184,22 +184,22 @@ export function applyRCMMiddleware(io: IOServerType, inputOptions?: Partial<Serv
   })
 }
 
-
+/** Information received from the client during the connection. */
 interface HandshakeQuery {
-  deviceKind: 'screen' | 'controller',
-  deviceId: string,
+  deviceKind: 'screen' | 'controller';
+  deviceId: string;
   /** Only controllers need to issue this information. */
-  roomIdToConnect?: string,
+  roomIdToConnect?: string;
 }
 
 interface Room {
-  ID: RoomID,
-  screenSocket: Socket | null,
-  masterControllerDeviceId: string | null,
+  ID: RoomID;
+  screenSocket: Socket | null;
+  masterControllerDeviceId: string | null;
   controllers: Array<{
-    deviceId: string,
-    socket: Socket,
-  }>
+    deviceId: string;
+    socket: Socket;
+  }>;
 }
 type RoomID = string
 
@@ -217,8 +217,11 @@ function findOrCreateRoom(ID: RoomID): Room {
   return newRoom
 }
 
-/** It's like the garbage collector. It checks if there is at least one device connected to the room, if not, the room is removed. */
-function checkIfCanDeleteTheRoom(room: Room | string) {
+/**
+ * It's like the garbage collector.
+ * It checks if there is at least one device connected to the room, if not, the room is removed.
+ */
+function checkIfCanDeleteTheRoom(room: Room | RoomID) {
   if (typeof room === 'string') room = rooms[room]
 
   const numberOfDevices = room.controllers.length + (room.screenSocket === null ? 0 : 1)
@@ -227,7 +230,7 @@ function checkIfCanDeleteTheRoom(room: Room | string) {
   }
 }
 
-function sendMessageToAllDevicesInTheRoom(room: Room | string, data: any) {
+function sendMessageToAllDevicesInTheRoom(room: Room | RoomID, data: any) {
   if (typeof room === 'string') room = rooms[room]
 
   room.screenSocket?.emit('__master_controller_id_changed', data)

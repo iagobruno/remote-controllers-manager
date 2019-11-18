@@ -1,4 +1,4 @@
-import { Server as IOServerType } from 'socket.io';
+import { Server as IOServer } from 'socket.io';
 interface ServerOptions {
     /**
      * If true, the server can create several distinct rooms, if false, only one room can be created.
@@ -12,12 +12,12 @@ interface ServerOptions {
     maxControllersPerRoom: number;
     /**
      * Self explanatory. Indicates the limit of simultaneously connected devices to the server.
-     * Use this to prevent the server from becoming overloaded.
+     * Use this to prevent the server becoming overloaded.
      * @default Infinity
      */
     limitOfConnectionsToServer: number;
     /**
-     * A master controller is a controller that can change room settings, execute sensitive commands or finish the game for example.
+     * A master controller is a device that can change room settings, execute sensitive commands or finish the game for example.
      * @default true
      */
     eachRoomNeedsAMasterController: boolean;
@@ -35,5 +35,5 @@ interface ServerOptions {
  * const server = io.listen(3000)
  * applyRCMMiddleware(server)
  */
-export declare function applyRCMMiddleware(io: IOServerType, inputOptions?: Partial<ServerOptions>): void;
+export declare function applyRCMMiddleware(io: IOServer, opts?: Partial<ServerOptions>): void;
 export {};

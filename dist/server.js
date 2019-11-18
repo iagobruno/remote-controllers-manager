@@ -17,12 +17,12 @@ var numberOfDevicesConnected = 0;
  * const server = io.listen(3000)
  * applyRCMMiddleware(server)
  */
-function applyRCMMiddleware(io, inputOptions) {
+function applyRCMMiddleware(io, opts) {
     if (io === undefined || (io.emit === undefined && io.sockets === undefined)) {
         throw new Error('You must call the "applyRCMMiddleware" function with an instance of a socket.io server as the first argument.');
     }
-    var options = Object.assign(defaultOptions, inputOptions);
-    // Validate ne connections
+    var options = Object.assign(defaultOptions, opts);
+    // Validate new connections
     io.use(function (socket, next) {
         var _a, _b;
         var _c = socket.handshake.query, deviceKind = _c.deviceKind, deviceId = _c.deviceId, roomIdToConnect = _c.roomIdToConnect;
@@ -54,7 +54,8 @@ function applyRCMMiddleware(io, inputOptions) {
             if (room.controllers.length >= options.maxControllersPerRoom) {
                 return next(new Error('The limit of connected controllers per room has been reached.'));
             }
-            if (room.controllers.find(function (ctrl) { return ctrl.deviceId === deviceId; }) !== undefined) {
+            var isAlreadyConnected = room.controllers.find(function (ctrl) { return ctrl.deviceId === deviceId; }) !== undefined;
+            if (isAlreadyConnected) {
                 return next(new Error('This controller is already connected in this room.'));
             }
         }
@@ -65,7 +66,7 @@ function applyRCMMiddleware(io, inputOptions) {
         var _a, _b;
         numberOfDevicesConnected++;
         var _c = socket.handshake.query, deviceKind = _c.deviceKind, deviceId = _c.deviceId, roomIdToConnect = _c.roomIdToConnect;
-        /** Instance of room the device connected to. */
+        /** Instance of room the device is connected to. */
         var room;
         if (deviceKind === 'screen') {
             room = findOrCreateRoom(deviceId);
@@ -78,7 +79,6 @@ function applyRCMMiddleware(io, inputOptions) {
             room = rooms[roomIdToConnect];
             (_a = room.screenSocket) === null || _a === void 0 ? void 0 : _a.emit('__new_controller', deviceId);
             room.controllers.push({
-                // @ts-ignore
                 deviceId: deviceId,
                 socket: socket
             });
@@ -154,7 +154,10 @@ function findOrCreateRoom(ID) {
     rooms[ID] = newRoom;
     return newRoom;
 }
-/** It's like the garbage collector. It checks if there is at least one device connected to the room, if not, the room is removed. */
+/**
+ * It's like the garbage collector.
+ * It checks if there is at least one device connected to the room, if not, the room is removed.
+ */
 function checkIfCanDeleteTheRoom(room) {
     if (typeof room === 'string')
         room = rooms[room];
