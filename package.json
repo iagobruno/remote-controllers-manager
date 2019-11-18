@@ -1,13 +1,8 @@
 {
   "name": "remote-controllers-manager",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MIT",
-  "repository": {
-    "type" : "git",
-    "url" : "https://github.com/iagobruno/remote-controllers-manager.git"
-  },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "repository": "github:iagobruno/remote-controllers-manager",
   "files": [ "dist/**/*" ],
   "scripts": {
     "build": "tsc --declaration",

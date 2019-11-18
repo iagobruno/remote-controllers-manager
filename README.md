@@ -36,7 +36,7 @@ yarn add https://github.com/iagobruno/remote-controllers-manager socket.io
 
 ```js
 import io from 'socket.io'
-import { applyRCMMiddleware } from 'remote-controllers-manager'
+import { applyRCMMiddleware } from 'remote-controllers-manager/dist/server'
 import { green, blue } from 'colors'
 const server = io.listen(3000)
 
@@ -48,14 +48,13 @@ applyRCMMiddleware(server, {
 })
 
 console.log(green('⚡ Listening on port http://localhost:3000'))
-
 ```
 
 3. Then create a "screen.js" file and instantiate the `Screen` class, like this:
 
 ```js
 // screen.js
-import { Screen } from 'remote-controllers-manager'
+import { Screen } from 'remote-controllers-manager/dist/client'
 
 const screen = new Screen({
   uri: 'http://localhost:3000'
@@ -75,7 +74,7 @@ screen.onReady(() => {
 
 ```js
 // controller.js
-import { Controller } from 'remote-controllers-manager'
+import { Controller } from 'remote-controllers-manager/dist/client'
 
 const controller = new Controller({
   uri: 'http://localhost:3000'

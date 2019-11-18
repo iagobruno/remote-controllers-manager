@@ -30,7 +30,7 @@ interface ServerOptions {
 /**
  * @example
  * import io from 'socket.io'
- * import { applyRCMMiddleware } from 'remote-controllers-manager'
+ * import { applyRCMMiddleware } from 'remote-controllers-manager/dist/server'
  *
  * const server = io.listen(3000)
  * applyRCMMiddleware(server)
