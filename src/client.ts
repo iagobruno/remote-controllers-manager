@@ -24,8 +24,6 @@ class Device {
     private kind: 'screen' | 'controller',
     { uri, query, deviceId, ...options }: DeviceOptions
   ) {
-
-    this.deviceId = deviceId ?? this.generateDeviceId()
     this.socket = io.connect(uri, {
       ...options,
       query: {
@@ -52,31 +50,36 @@ class Device {
     })
   }
 
-  private generateDeviceId() {
-    const savedDeviceId = localStorage.getItem('uq_device_id')
-    if (savedDeviceId !== null) {
-      return savedDeviceId
-    } else {
-      const newDeviceId = (this.kind === 'screen')
-        ? Math.random().toString().substring(3, 9)
-        : Date.now() + Math.random().toString(36).substr(2, 9)
-      localStorage.setItem('uq_device_id', newDeviceId)
-      return newDeviceId
-    }
-  }
-
   /** Indicates if the API is ready to use.  */
   public isReady: boolean = false;
-  protected handlerOnReady?: Function;
-  /** Get called when the API is ready to use. */
-  onReady(callback: Function) {
-    if (this.isReady) return callback();
-    this.handlerOnReady = callback
-  }
+  protected onReadyHandler?: Function;
 
   /** Whether or not the socket is connected to the server. */
   get isConnected() {
     return this.socket.connected
+  }
+
+  protected connectionPromise(): Promise<any> {
+    if (this.isConnected) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      const handleConnect = () => {
+        removeListeners()
+        resolve()
+      }
+      const handleError = (err) => {
+        this.socket.disconnect()
+        removeListeners()
+        reject(err)
+      }
+      const removeListeners = () => {
+        this.socket.off('connect', handleConnect)
+        this.socket.off('error', handleError)
+      }
+
+      this.socket.once('connect', handleConnect)
+      this.socket.once('error', handleError)
+    })
   }
 
   /**
@@ -147,23 +150,41 @@ export class Screen extends Device {
   constructor(options: ScreenOptions) {
     super('screen', options)
 
+    this.socket.on('__screen_device_id', (roomId: string) => {
+      this.deviceId = roomId
+      this.socket.io.opts.query = Object.assign(this.socket.io.opts.query, {
+        deviceId: roomId,
+      })
+      this.checkIsReady()
+    })
     this.socket.once('__all_connected_controllers_id', (ids: string[]) => {
       this.connectedControllers = new Set(ids)
       this.checkIsReady()
     })
-
     this.socket.on('__new_controller', (deviceId) => {
       this.connectedControllers?.add(deviceId)
     })
-
     this.socket.on('__controller_disconnect', (deviceId) => {
       this.connectedControllers?.delete(deviceId)
     })
 
     this.socket.once('connect', this.checkIsReady.bind(this))
+  }
 
-    // Auto connect
+  /**
+   * Start connection.
+   * @returns A promise to indicate if the connection was successful.
+   */
+  public start(): Promise<any> {
+    if (this.isConnected) return Promise.resolve('You are already connected.');
+
     this.socket.connect()
+
+    return this.connectionPromise()
+      .then(() => new Promise(resolve => {
+        if (this.isReady) return resolve();
+        this.onReadyHandler = resolve
+      }))
   }
 
   private checkIsReady() {
@@ -171,10 +192,11 @@ export class Screen extends Device {
     if (
       this.connectedControllers !== null &&
       this.masterControllerDeviceId !== undefined &&
-      this.socket.connected === true
+      this.socket.connected === true &&
+      this.deviceId !== undefined
     ) {
       this.isReady = true
-      this.handlerOnReady?.call(undefined)
+      this.onReadyHandler?.call(undefined)
     }
   }
 
@@ -241,9 +263,6 @@ interface ControllerOptions extends Options {
   deviceId?: string,
 }
 
-/**
- * Unlike Screen class, the Controller class does not automatically connect to the server, you must call the "connectToRoom" method with the room id to initiate the connection.
- */
 export class Controller extends Device {
   /** @warning Can only be used within the "onReady" function because it's value is fetched asynchronous. */
   public isMasterController: boolean | null = null;
@@ -254,6 +273,11 @@ export class Controller extends Device {
 
   constructor(options: ControllerOptions) {
     super('controller', options as any)
+    this.deviceId = options.deviceId ?? getDeviceId()
+
+    this.socket.io.opts.query = Object.assign(this.socket.io.opts.query, {
+      deviceId: this.deviceId
+    })
 
     this.socket.once('__screen_is_connected', (res) => {
       this.isScreenConnected = res
@@ -274,36 +298,26 @@ export class Controller extends Device {
 
   /**
    * Start connection.
-   * @param roomId Indicates which screen the control should connect to. User must manually enter the ID that can be shown on the screen.
-   * @returns A promise to identify whether or not an error occurred during the connection.
+   * @param screenId Indicates which screen the control should connect to. User must manually enter the ID that can be shown on the screen.
+   * @returns A promise to indicate if the connection was successful.
    */
-  public connectToRoom(roomId: string) {
+  public connectToScreen(screenId: string): Promise<any> {
     if (this.isConnected) return Promise.resolve('You are already connected.');
 
     this.socket.io.opts.query = Object.assign(this.socket.io.opts.query, {
-      roomIdToConnect: roomId
+      roomIdToConnect: screenId
     })
     this.socket.connect()
 
-    return new Promise((resolve, reject) => {
-      const handleConnect = () => {
-        this.idOfScreenWhichIsConnectedTo = roomId
-        removeListeners()
-        resolve()
-      }
-      const handleError = (err) => {
-        this.socket.disconnect()
-        removeListeners()
-        reject(err)
-      }
-      const removeListeners = () => {
-        this.socket.off('connect', handleConnect)
-        this.socket.off('error', handleError)
-      }
-
-      this.socket.once('connect', handleConnect)
-      this.socket.once('error', handleError)
-    })
+    return this.connectionPromise()
+      .then(() => {
+        this.idOfScreenWhichIsConnectedTo = screenId
+        return;
+      })
+      .then(() => new Promise(resolve => {
+        if (this.isReady) return resolve();
+        this.onReadyHandler = resolve
+      }))
   }
 
   private checkIsReady() {
@@ -315,7 +329,7 @@ export class Controller extends Device {
       this.socket.connected === true
     ) {
       this.isReady = true
-      this.handlerOnReady?.call(undefined)
+      this.onReadyHandler?.call(undefined)
     }
   }
 
@@ -375,3 +389,15 @@ export class Controller extends Device {
 }
 
 type UnsubscribeFunction = () => void;
+
+
+function getDeviceId() {
+  const savedDeviceId = localStorage.getItem('uq_device_id')
+  if (savedDeviceId !== null) {
+    return savedDeviceId
+  } else {
+    const newDeviceId = Date.now() + Math.random().toString(36).substr(2, 9)
+    localStorage.setItem('uq_device_id', newDeviceId)
+    return newDeviceId
+  }
+}

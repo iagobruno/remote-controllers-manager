@@ -1,4 +1,4 @@
-import { Controller } from '../../src'
+import { Controller } from '../../src/client'
 
 const controller = new Controller({
   uri: 'http://localhost:3000'
@@ -7,7 +7,7 @@ const controller = new Controller({
 // @ts-ignore
 window.socket = controller.socket
 
-controller.onReady(() => {
+function onReady() {
   console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
 
   handleIsMasterControllerChange()
@@ -17,7 +17,7 @@ controller.onReady(() => {
   controller.onMessage((data, fromDeviceId) => {
     console.log(`Message from "${fromDeviceId}": "${data}"`)
   })
-})
+}
 
 controller.onDeviceConnectionStateChange(handleConnectionChange)
 
@@ -36,7 +36,8 @@ function handleIsScreenConnected() {
 // @ts-ignore
 window.connect = () => {
   const roomId = prompt('Enter the room ID. (You can get the id on the screen tab)')
-  controller.connectToRoom(roomId)
+  controller.connectToScreen(roomId)
+    .then(onReady)
     .catch((err) => console.error('ERROR AO SE CONECTAR!', err))
 }
 // @ts-ignore

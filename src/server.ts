@@ -37,7 +37,7 @@ const defaultOptions: ServerOptions = {
   limitOfConnectionsToServer: Infinity,
 }
 
-let rooms: Record<RoomID, Room> = {}
+let rooms: Record<string, Room> = {}
 let numberOfDevicesConnected = 0
 
 /**
@@ -64,7 +64,7 @@ export function applyRCMMiddleware(io: IOServer, opts?: Partial<ServerOptions>) 
     }
 
     if (deviceKind === undefined || typeof deviceKind !== 'string') return next(new Error('Invalid or not set "deviceKind".'))
-    if (deviceId === undefined || typeof deviceId !== 'string') return next(new Error('Invalid or not set "deviceId".'))
+
 
     if (deviceKind === 'screen') {
       if (
@@ -80,6 +80,10 @@ export function applyRCMMiddleware(io: IOServer, opts?: Partial<ServerOptions>) 
     }
 
     if (deviceKind === 'controller') {
+      if (deviceId === undefined || typeof deviceId !== 'string') {
+        return next(new Error('Invalid or not set "deviceId".'))
+      }
+
       if (roomIdToConnect === undefined) {
         return next(new Error('You must specify the room id you want to connect to.'))
       }
@@ -103,14 +107,17 @@ export function applyRCMMiddleware(io: IOServer, opts?: Partial<ServerOptions>) 
 
   io.on('connection', (socket) => {
     numberOfDevicesConnected++
-    const { deviceKind, deviceId, roomIdToConnect } = socket.handshake.query as HandshakeQuery
+    let { deviceKind, deviceId, roomIdToConnect } = socket.handshake.query as HandshakeQuery
     /** Instance of room the device is connected to. */
     let room: Room;
 
     if (deviceKind === 'screen') {
       room = findOrCreateRoom(deviceId)
+      console.table(rooms)
+      if (room.ID !== deviceId) deviceId = room.ID
 
       room.screenSocket = socket
+      room.screenSocket.emit('__screen_device_id', room.ID)
       room.screenSocket.emit('__all_connected_controllers_id', room.controllers.map(ctrl => ctrl.deviceId))
       // Notify all controllers in this room
       room.controllers.forEach((ctrl) => ctrl.socket.emit('__screen_connected'))
@@ -128,7 +135,7 @@ export function applyRCMMiddleware(io: IOServer, opts?: Partial<ServerOptions>) 
       if (options?.eachRoomNeedsAMasterController && room.masterControllerDeviceId === null) {
         room.masterControllerDeviceId = deviceId!
         // Notify all devices in this room about the new master controller
-        sendMessageToAllDevicesInTheRoom(room, room.masterControllerDeviceId)
+        sendToAllDevicesInRoom(room, room.masterControllerDeviceId)
       }
     }
     socket.emit('__master_controller_id', room!.masterControllerDeviceId)
@@ -174,12 +181,12 @@ export function applyRCMMiddleware(io: IOServer, opts?: Partial<ServerOptions>) 
           else if (options.ifMasterControllerDisconnects === 'passToNext') {
             room.masterControllerDeviceId = room.controllers[0]?.deviceId ?? null
             // Notify all devices in this room about the new master controller
-            sendMessageToAllDevicesInTheRoom(room, room.masterControllerDeviceId)
+            sendToAllDevicesInRoom(room, room.masterControllerDeviceId)
           }
         }
       }
 
-      checkIfCanDeleteTheRoom(room)
+      // deleteRoomIfEmpty()
     })
   })
 }
@@ -193,7 +200,7 @@ interface HandshakeQuery {
 }
 
 interface Room {
-  ID: RoomID;
+  ID: string;
   screenSocket: Socket | null;
   masterControllerDeviceId: string | null;
   controllers: Array<{
@@ -201,27 +208,34 @@ interface Room {
     socket: Socket;
   }>;
 }
-type RoomID = string
 
-function findOrCreateRoom(ID: RoomID): Room {
-  const roomAlreadyCreated = rooms[ID] !== undefined
-  if (roomAlreadyCreated) return rooms[ID]
+function findOrCreateRoom(id?: string): Room {
+  if (!id || id === 'undefined') {
+    return createRoom()
+  }
+  else {
+    if (!rooms[id]) {
+      return createRoom(id)
+    }
+    return rooms[id]
+  }
+}
 
+function createRoom(ID: string = generateUniqueRoomId()): Room {
   const newRoom: Room = {
     ID,
     screenSocket: null,
     masterControllerDeviceId: null,
     controllers: [],
   }
-  rooms[ID] = newRoom
-  return newRoom
+  return rooms[ID] = newRoom
 }
 
 /**
  * It's like the garbage collector.
  * It checks if there is at least one device connected to the room, if not, the room is removed.
  */
-function checkIfCanDeleteTheRoom(room: Room | RoomID) {
+function deleteRoomIfEmpty(room: Room | string) {
   if (typeof room === 'string') room = rooms[room]
 
   const numberOfDevices = room.controllers.length + (room.screenSocket === null ? 0 : 1)
@@ -230,11 +244,21 @@ function checkIfCanDeleteTheRoom(room: Room | RoomID) {
   }
 }
 
-function sendMessageToAllDevicesInTheRoom(room: Room | RoomID, data: any) {
+function sendToAllDevicesInRoom(room: Room | string, data: any) {
   if (typeof room === 'string') room = rooms[room]
 
   room.screenSocket?.emit('__master_controller_id_changed', data)
   room.controllers.forEach(ctrl => {
     ctrl.socket.emit('__master_controller_id_changed', data)
   })
+}
+
+function generateUniqueRoomId() {
+  const id = Math.random().toString().substring(3, 9)
+
+  const roomAlreadyExist = rooms[id] !== undefined
+  if (roomAlreadyExist) {
+    return generateUniqueRoomId()
+  }
+  else return id
 }

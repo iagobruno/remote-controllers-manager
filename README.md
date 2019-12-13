@@ -60,9 +60,9 @@ const screen = new Screen({
   uri: 'http://localhost:3000'
 })
 
-screen.onReady(() => {
+screen.start().then(() => {
   console.log('Successfully connected to server!')
-  
+
   // Show screen id so user can connect
   document.body.innerHTML = `SCREEN_ID = ${screen.deviceId}`
 })
@@ -80,13 +80,9 @@ const controller = new Controller({
   uri: 'http://localhost:3000'
 })
 
-controller.onReady(() => {
-  console.log('Successfully joined to the room!')
+controller.connectToScreen('<SCREEN_ID>').then(() => {
+  console.log('Successfully connected to screen!')
 })
-
-function connect() {
-  controller.connectToRoom('<SCREEN_ID>')
-}
 ```
 
 Just that, the package will take care of managing all controllers that connect in the room.

@@ -1,15 +1,17 @@
-import { Screen } from '../../src'
+import { Screen } from '../../src/client'
 
 const screen = new Screen({
   uri: 'http://localhost:3000'
 })
 
 // @ts-ignore
+window.screen = screen
+// @ts-ignore
 window.socket = screen.socket
 
 screen.socket.on('error', console.log)
 
-screen.onReady(() => {
+screen.start().then(() => {
   console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
 
   screen.onDeviceConnectionStateChange(handleConnectionChange)
@@ -24,7 +26,7 @@ screen.onReady(() => {
 })
 
 function handleConnectionChange() {
-  document.querySelector('.isConnected')!.innerHTML = screen.isConnected ? `CONNECTED! Room ID = ${screen.deviceId}` : 'DISCONNECTED'
+  document.querySelector('.isConnected')!.innerHTML = screen.isConnected ? `CONNECTED! Screen ID = ${screen.deviceId}` : 'DISCONNECTED'
 }
 
 function handleControllersChange() {

@@ -51,7 +51,7 @@ var Device = /** @class */ (function () {
         this.masterControllerDeviceId = undefined;
         /** Indicates if the API is ready to use.  */
         this.isReady = false;
-        this.deviceId = (deviceId !== null && deviceId !== void 0 ? deviceId : this.generateDeviceId());
+        this.deviceId = kind === 'controller' ? ((deviceId !== null && deviceId !== void 0 ? deviceId : this.generateDeviceId())) : undefined;
         this.socket = socket_io_client_1.default.connect(uri, __assign(__assign({}, options), { query: __assign(__assign({}, query), { deviceKind: this.kind, deviceId: this.deviceId }), autoConnect: false }));
         var updateMasterControllerId = function (masterDeviceId) {
             _this.masterControllerDeviceId = masterDeviceId;
@@ -76,18 +76,10 @@ var Device = /** @class */ (function () {
             return savedDeviceId;
         }
         else {
-            var newDeviceId = (this.kind === 'screen')
-                ? Math.random().toString().substring(3, 9)
-                : Date.now() + Math.random().toString(36).substr(2, 9);
+            var newDeviceId = Date.now() + Math.random().toString(36).substr(2, 9);
             localStorage.setItem('uq_device_id', newDeviceId);
             return newDeviceId;
         }
-    };
-    /** Get called when the API is ready to use. */
-    Device.prototype.onReady = function (callback) {
-        if (this.isReady)
-            return callback();
-        this.handlerOnReady = callback;
     };
     Object.defineProperty(Device.prototype, "isConnected", {
         /** Whether or not the socket is connected to the server. */
@@ -97,6 +89,28 @@ var Device = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
+    Device.prototype.connectionPromise = function () {
+        var _this = this;
+        if (this.isConnected)
+            return Promise.resolve();
+        return new Promise(function (resolve, reject) {
+            var handleConnect = function () {
+                removeListeners();
+                resolve();
+            };
+            var handleError = function (err) {
+                _this.socket.disconnect();
+                removeListeners();
+                reject(err);
+            };
+            var removeListeners = function () {
+                _this.socket.off('connect', handleConnect);
+                _this.socket.off('error', handleError);
+            };
+            _this.socket.once('connect', handleConnect);
+            _this.socket.once('error', handleError);
+        });
+    };
     /**
      * Get called when this device disconnects and reconnects to server.
      * @returns A function to remove the listener.
@@ -156,6 +170,13 @@ var Screen = /** @class */ (function (_super) {
     function Screen(options) {
         var _this = _super.call(this, 'screen', options) || this;
         _this.connectedControllers = null;
+        _this.socket.once('__screen_device_id', function (deviceId) {
+            _this.deviceId = id;
+            _this.socket.io.opts.query = Object.assign(_this.socket.io.opts.query, {
+                deviceId: deviceId,
+            });
+            _this.checkIsReady();
+        });
         _this.socket.once('__all_connected_controllers_id', function (ids) {
             _this.connectedControllers = new Set(ids);
             _this.checkIsReady();
@@ -169,19 +190,34 @@ var Screen = /** @class */ (function (_super) {
             (_a = _this.connectedControllers) === null || _a === void 0 ? void 0 : _a.delete(deviceId);
         });
         _this.socket.once('connect', _this.checkIsReady.bind(_this));
-        // Auto connect
-        _this.socket.connect();
         return _this;
     }
+    /**
+     * Start connection.
+     * @returns A promise to indicate if the connection was successful.
+     */
+    Screen.prototype.start = function () {
+        var _this = this;
+        if (this.isConnected)
+            return Promise.resolve('You are already connected.');
+        this.socket.connect();
+        return this.connectionPromise()
+            .then(function () { return new Promise(function (resolve) {
+            if (_this.isReady)
+                return resolve();
+            _this.onReadyHandler = resolve;
+        }); });
+    };
     Screen.prototype.checkIsReady = function () {
         var _a;
         if (this.isReady)
             return;
         if (this.connectedControllers !== null &&
             this.masterControllerDeviceId !== undefined &&
-            this.socket.connected === true) {
+            this.socket.connected === true &&
+            this.deviceId !== undefined) {
             this.isReady = true;
-            (_a = this.handlerOnReady) === null || _a === void 0 ? void 0 : _a.call(undefined);
+            (_a = this.onReadyHandler) === null || _a === void 0 ? void 0 : _a.call(undefined);
         }
     };
     /**
@@ -243,9 +279,6 @@ var Screen = /** @class */ (function (_super) {
     return Screen;
 }(Device));
 exports.Screen = Screen;
-/**
- * Unlike Screen class, the Controller class does not automatically connect to the server, you must call the "connectToRoom" method with the room id to initiate the connection.
- */
 var Controller = /** @class */ (function (_super) {
     __extends(Controller, _super);
     function Controller(options) {
@@ -274,35 +307,27 @@ var Controller = /** @class */ (function (_super) {
     }
     /**
      * Start connection.
-     * @param roomId Indicates which screen the control should connect to. User must manually enter the ID that can be shown on the screen.
-     * @returns A promise to identify whether or not an error occurred during the connection.
+     * @param screenId Indicates which screen the control should connect to. User must manually enter the ID that can be shown on the screen.
+     * @returns A promise to indicate if the connection was successful.
      */
-    Controller.prototype.connectToRoom = function (roomId) {
+    Controller.prototype.connectToScreen = function (screenId) {
         var _this = this;
         if (this.isConnected)
             return Promise.resolve('You are already connected.');
         this.socket.io.opts.query = Object.assign(this.socket.io.opts.query, {
-            roomIdToConnect: roomId
+            roomIdToConnect: screenId
         });
         this.socket.connect();
-        return new Promise(function (resolve, reject) {
-            var handleConnect = function () {
-                _this.idOfScreenWhichIsConnectedTo = roomId;
-                removeListeners();
-                resolve();
-            };
-            var handleError = function (err) {
-                _this.socket.disconnect();
-                removeListeners();
-                reject(err);
-            };
-            var removeListeners = function () {
-                _this.socket.off('connect', handleConnect);
-                _this.socket.off('error', handleError);
-            };
-            _this.socket.once('connect', handleConnect);
-            _this.socket.once('error', handleError);
-        });
+        return this.connectionPromise()
+            .then(function () {
+            _this.idOfScreenWhichIsConnectedTo = screenId;
+            return;
+        })
+            .then(function () { return new Promise(function (resolve) {
+            if (_this.isReady)
+                return resolve();
+            _this.onReadyHandler = resolve;
+        }); });
     };
     Controller.prototype.checkIsReady = function () {
         var _a;
@@ -313,7 +338,7 @@ var Controller = /** @class */ (function (_super) {
             this.isScreenConnected !== null &&
             this.socket.connected === true) {
             this.isReady = true;
-            (_a = this.handlerOnReady) === null || _a === void 0 ? void 0 : _a.call(undefined);
+            (_a = this.onReadyHandler) === null || _a === void 0 ? void 0 : _a.call(undefined);
         }
     };
     /**

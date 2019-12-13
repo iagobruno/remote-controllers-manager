@@ -31,8 +31,6 @@ function applyRCMMiddleware(io, opts) {
         }
         if (deviceKind === undefined || typeof deviceKind !== 'string')
             return next(new Error('Invalid or not set "deviceKind".'));
-        if (deviceId === undefined || typeof deviceId !== 'string')
-            return next(new Error('Invalid or not set "deviceId".'));
         if (deviceKind === 'screen') {
             if (options.allowMultipleRooms === false &&
                 Object.keys(rooms).length >= 1 &&
@@ -44,6 +42,9 @@ function applyRCMMiddleware(io, opts) {
             }
         }
         if (deviceKind === 'controller') {
+            if (deviceId === undefined || typeof deviceId !== 'string') {
+                return next(new Error('Invalid or not set "deviceId".'));
+            }
             if (roomIdToConnect === undefined) {
                 return next(new Error('You must specify the room id you want to connect to.'));
             }
@@ -69,8 +70,11 @@ function applyRCMMiddleware(io, opts) {
         /** Instance of room the device is connected to. */
         var room;
         if (deviceKind === 'screen') {
+            console.log({ deviceId: deviceId });
             room = findOrCreateRoom(deviceId);
+            console.table(rooms);
             room.screenSocket = socket;
+            room.screenSocket.emit('__screen_device_id', room.ID);
             room.screenSocket.emit('__all_connected_controllers_id', room.controllers.map(function (ctrl) { return ctrl.deviceId; }));
             // Notify all controllers in this room
             room.controllers.forEach(function (ctrl) { return ctrl.socket.emit('__screen_connected'); });
@@ -142,17 +146,19 @@ function applyRCMMiddleware(io, opts) {
 }
 exports.applyRCMMiddleware = applyRCMMiddleware;
 function findOrCreateRoom(ID) {
-    var roomAlreadyCreated = rooms[ID] !== undefined;
-    if (roomAlreadyCreated)
+    if (ID === undefined || ID === 'undefined') {
+        ID = generateUniqueRoomId();
+        var newRoom = {
+            ID: ID,
+            screenSocket: null,
+            masterControllerDeviceId: null,
+            controllers: [],
+        };
+        return rooms[ID] = newRoom;
+    }
+    else {
         return rooms[ID];
-    var newRoom = {
-        ID: ID,
-        screenSocket: null,
-        masterControllerDeviceId: null,
-        controllers: [],
-    };
-    rooms[ID] = newRoom;
-    return newRoom;
+    }
 }
 /**
  * It's like the garbage collector.
@@ -174,4 +180,14 @@ function sendMessageToAllDevicesInTheRoom(room, data) {
     room.controllers.forEach(function (ctrl) {
         ctrl.socket.emit('__master_controller_id_changed', data);
     });
+}
+function generateUniqueRoomId() {
+    var id = Math.random().toString().substring(3, 9);
+    var roomAlreadyExist = rooms[id] !== undefined;
+    if (roomAlreadyExist) {
+        return generateUniqueRoomId();
+    }
+    else {
+        return id;
+    }
 }
