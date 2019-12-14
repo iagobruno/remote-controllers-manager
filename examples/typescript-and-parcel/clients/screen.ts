@@ -1,7 +1,9 @@
-import { Screen } from '../../src/client'
+import * as io from 'socket.io-client'
+import { Screen } from 'remote-controllers-manager/client'
 
 const screen = new Screen({
-  uri: 'http://localhost:3000'
+  io,
+  uri: 'http://localhost:3000',
 })
 
 // @ts-ignore

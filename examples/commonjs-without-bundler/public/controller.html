@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Controller Tab</title>
+</head>
+<body>
+  <div class="isConnected"></div>
+  <div class="isMasterController"></div>
+  <div class="isScreenConnected"></div>
+
+  <button onClick="connect()">Connect</button>
+  <button onClick="sendToScreen()">Send message to screen</button>
+  <button onClick="sendToMaster()">Send message to master controller</button>
+  <button onClick="sendToOthers()">Send message to other devices</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+  <script src="https://unpkg.com/remote-controllers-manager@^0.3.0/client.umd.js"></script>
+  <script>
+    const controller = new RCM.Controller({
+      io,
+      uri: 'http://localhost:3000',
+    })
+    window.socket = controller.socket
+
+
+    function handleConnectionChange() {
+      document.querySelector('.isConnected').innerHTML = controller.isConnected ? `CONNECTED! Device ID = ${controller.deviceId}` : 'DISCONNECTED'
+    }
+
+    function handleIsMasterControllerChange() {
+      document.querySelector('.isMasterController').innerHTML = controller.isMasterController ? 'This device IS the master controller' : 'This device is NOT the master controller.'
+    }
+
+    function handleIsScreenConnected() {
+      document.querySelector('.isScreenConnected').innerHTML = controller.isScreenConnected ? 'The screen IS connected' : 'The screen IS NOT connected'
+    }
+
+    function onReady() {
+      console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
+
+      handleIsMasterControllerChange()
+      controller.onMasterControllerIdChange(handleIsMasterControllerChange)
+      controller.onScreenConnectionStateChange(handleIsScreenConnected)
+      controller.onDeviceConnectionStateChange(handleConnectionChange)
+
+      controller.onMessage((data, fromDeviceId) => {
+        console.log(`Message from "${fromDeviceId}": "${data}"`)
+      })
+    }
+
+    window.connect = () => {
+      const roomId = prompt('Enter the room ID. (You can get the id on the screen tab)')
+      controller.connectToScreen(roomId)
+        .then(onReady)
+        .catch((err) => console.error('ERROR AO SE CONECTAR!', err))
+    }
+    window.sendToScreen = () => {
+      controller.sendToScreen('Hello screen')
+    }
+    window.sendToMaster = () => {
+      controller.sendToMasterController('Hello master controller')
+    }
+    window.sendToOthers = () => {
+      controller.unsafe_broadcastToOtherControllers('Hello controllers!')
+    }
+
+  </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
-import io from 'socket.io'
-import { applyRCMMiddleware } from '../src/server'
+import * as io from 'socket.io'
+import { applyRCMMiddleware } from 'remote-controllers-manager/server'
 import { green, blue } from 'colors'
 const server = io.listen(3000)
 

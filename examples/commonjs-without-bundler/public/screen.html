@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Screen Tab</title>
+</head>
+<body>
+  <div class="isConnected">DISCONNECTED</div>
+  <div class="totalOfControllers">0 Controllers</div>
+
+  <button onClick="broadcast()">Send mensage to controllers</button>
+  <button onClick="sendToMaster()">Send mensage to master controllers</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+  <script src="https://unpkg.com/remote-controllers-manager@^0.3.0/client.umd.js"></script>
+  <script>
+    const screen = new RCM.Screen({
+      io,
+      uri: 'http://localhost:3000',
+    })
+    window.socket = screen.socket
+
+    screen.socket.on('error', console.log)
+
+    screen.start().then(() => {
+      console.log('%cSuccessfully connected to server', 'color: green; font-weight: bold;')
+
+      screen.onDeviceConnectionStateChange(handleConnectionChange)
+      handleControllersChange()
+      screen.onConnect(handleControllersChange)
+      screen.onDisconnect(handleControllersChange)
+      screen.onMasterControllerIdChange(handleControllersChange)
+
+      screen.onMessage((data, fromDeviceId) => {
+        console.log(`Message from "${fromDeviceId}": "${data}"`)
+      })
+    })
+
+    function handleConnectionChange() {
+      document.querySelector('.isConnected').innerHTML = screen.isConnected ? `CONNECTED! Screen ID = ${screen.deviceId}` : 'DISCONNECTED'
+    }
+
+    function handleControllersChange() {
+      document.querySelector('.totalOfControllers').innerHTML = `${screen.totalOfConnectedControllers} Controllers | Master controller id = ${screen.masterControllerDeviceId}`
+    }
+
+    window.broadcast = () => {
+      screen.broadcastToControllers('Hello controllers!')
+    }
+    window.sendToMaster = () => {
+      screen.sendToMasterController('Hello master controller!')
+    }
+
+  </script>
+</body>
+</html>

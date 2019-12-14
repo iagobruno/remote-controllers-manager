@@ -1,3 +1,12 @@
 node_modules
-example/dist
-example/.cache
+dist
+.cache
+examples/*/yarn.lock
+examples/commonjs-without-bundler/dist
+examples/commonjs-without-bundler/.cache
+yarn-error.log
+/server.js
+/server.d.ts
+/client.js
+/client.d.ts
+/client.umd.js

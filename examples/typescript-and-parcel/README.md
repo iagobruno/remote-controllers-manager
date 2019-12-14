@@ -1,6 +1,6 @@
 # Demo
 
-It's a simple demo app but you can check out the package idea.
+Simple demo using [typescript](https://www.typescriptlang.org/) and [parcel](https://parceljs.org/).
 
 ```bash
 yarn install
