@@ -14,7 +14,7 @@ class Device {
   public deviceId?: string;
   /**
    * If null, means that has been configured on the server that does not require a master controller.
-   * @warning Can only be used within the "onReady" function because it's value is fetched asynchronous.
+   * @warning Can only be used after connection has been established because it's value is fetched asynchronous.
    */
   public masterControllerDeviceId: string | null | undefined = undefined;
   private handlerMasterControllerIdChange?: Function;
@@ -203,13 +203,13 @@ export class Screen extends Device {
 
   /**
    * @returns An array with the id of all connected controllers.
-   * @warning Can only be used within the "onReady" function because it's value is fetched asynchronous.
+   * @warning Can only be used after "start" function because it's value is fetched asynchronous.
    */
   getAllControllerDeviceIds() {
     return Array.from(this.connectedControllers?.values()!)
   }
 
-  /** @warning Can only be used within the "onReady" function because it's value is fetched asynchronous. */
+  /** @warning Can only be used after "start" function because it's value is fetched asynchronous. */
   get totalOfConnectedControllers() {
     return this.connectedControllers?.size
   }
@@ -265,10 +265,10 @@ interface ControllerOptions extends Options {
 }
 
 export class Controller extends Device {
-  /** @warning Can only be used within the "onReady" function because it's value is fetched asynchronous. */
+  /** @warning Can only be used after "connectToScreen" function because it's value is fetched asynchronous. */
   public isMasterController: boolean | null = null;
   public idOfScreenWhichIsConnectedTo: string | null = null;
-  /** @warning Can only be used within the "onReady" function because it's value is fetched asynchronous. */
+  /** @warning Can only be used after "connectToScreen" function because it's value is fetched asynchronous. */
   public isScreenConnected: boolean | null = null;
   private handlerScreenConnectionChange?: Function;
 

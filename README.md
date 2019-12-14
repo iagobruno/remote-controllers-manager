@@ -2,7 +2,7 @@
 
 This package creates an abstraction on top of socket.io to easily manage devices (smartphones for example) that can act as a remote controller of you web app, similar to how [AirConsole](https://airconsole.com) works.
 
-**This is a super experimental package** ⚠, I'm building it for personal usage in a project but if it gets good enough may I publish to npm and make some demos.
+**This is a super experimental package** ⚠, I'm building it for personal usage in a project but if it gets good enough may I publish a stable version on npm and write complete documentation.
 
 <!-- ![type definitions](https://img.shields.io/npm/types/remote-controllers-manager) -->
 
@@ -109,6 +109,8 @@ screen.onConnect(() => {
   screen.broadcastToControllers({ eventName: 'new_controller' })
 })
 ```
+
+## Documentation
 
 The documentation is not written yet because the package needs to be refined, but you can see what the final API will looks like in [this file](./src/client.ts).
 
