@@ -1,8 +1,10 @@
-# remote-controllers-manager 💻🎮 ![EXPERIMENTAL ⚠](https://img.shields.io/badge/-EXPERIMENTAL%20%E2%9A%A0-red)
+# remote-controllers-manager 💻🎮 ![EXPERIMENTAL ⚠](https://img.shields.io/badge/-EXPERIMENTAL%20%E2%9A%A0-red) ![npm](https://img.shields.io/npm/v/remote-controllers-manager)
 
 This package creates an abstraction on top of socket.io to easily manage devices (smartphones for example) that can act as a remote controller of you web app, similar to how [AirConsole](https://airconsole.com) works.
 
 **This is a super experimental package** ⚠, I'm building it for personal usage in a project but if it gets good enough may I publish to npm and make some demos.
+
+<!-- ![type definitions](https://img.shields.io/npm/types/remote-controllers-manager) -->
 
 Examples of apps I have in mind:
 
@@ -13,30 +15,23 @@ Examples of apps I have in mind:
 ## Features
 
 - ✅ Allows multiple controllers to connect to a screen.
-- ✅ Limit the number of controllers connected simultaneously.
 - ✅ Define if you need a master controller and what happens if it disconnects.
-- ✅ Receive message from other devices.
-- ✅ Broadcast message from screen to all controllers.
-- ✅ Send message from screen to a specific controller.
-- ✅ Send message from a controller to the screen.
-- ✅ Broadcast message from a controller to other controllers.
-- ✅ Check the connection state of the screen.
-- ✅ Get total of connected controllers.
+- ✅ Send messages from one device to another.
 - ✅ Allow multiple separate rooms.
 
 ## Getting started
 
-1. Install this repository as a dependency (yes, it's possible):
+1. Install the packages:
 
 ```bash
-yarn add https://github.com/iagobruno/remote-controllers-manager socket.io
+yarn add remote-controllers-manager socket.io socket.io-client
 ```
 
 2. Create a Node server using [socket.io](https://socket.io/docs/server-api/) and apply the required middleware:
 
 ```js
-import io from 'socket.io'
-import { applyRCMMiddleware } from 'remote-controllers-manager/dist/server'
+import * as io from 'socket.io'
+import { applyRCMMiddleware } from 'remote-controllers-manager/server'
 import { green, blue } from 'colors'
 const server = io.listen(3000)
 
@@ -52,12 +47,16 @@ console.log(green('⚡ Listening on port http://localhost:3000'))
 
 3. Then create a "screen.js" file and instantiate the `Screen` class, like this:
 
+**Note that you will need a bundler.**
+
 ```js
 // screen.js
-import { Screen } from 'remote-controllers-manager/dist/client'
+import * as io from 'socket.io-client'
+import { Screen } from 'remote-controllers-manager/client'
 
 const screen = new Screen({
-  uri: 'http://localhost:3000'
+  io,
+  uri: 'http://localhost:3000',
 })
 
 screen.start().then(() => {
@@ -68,16 +67,16 @@ screen.start().then(() => {
 })
 ```
 
-**Note that you will need a bundler.**
-
 4. Create another file called "controller.js" and instantiate the `Controller` class:
 
 ```js
 // controller.js
-import { Controller } from 'remote-controllers-manager/dist/client'
+import * as io from 'socket.io-client'
+import { Controller } from 'remote-controllers-manager/client'
 
 const controller = new Controller({
-  uri: 'http://localhost:3000'
+  io,
+  uri: 'http://localhost:3000',
 })
 
 controller.connectToScreen('<SCREEN_ID>').then(() => {
@@ -111,7 +110,7 @@ screen.onConnect(() => {
 })
 ```
 
-You can check the client API in [this file](./src/client.ts).
+The documentation is not written yet because the package needs to be refined, but you can see what the final API will looks like in [this file](./src/client.ts).
 
 ## License
 

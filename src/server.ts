@@ -113,7 +113,7 @@ export function applyRCMMiddleware(io: IOServer, opts?: Partial<ServerOptions>) 
 
     if (deviceKind === 'screen') {
       room = findOrCreateRoom(deviceId)
-      console.table(rooms)
+      // console.table(rooms)
       if (room.ID !== deviceId) deviceId = room.ID
 
       room.screenSocket = socket

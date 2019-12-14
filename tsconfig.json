@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "dist",
+    "declarationDir": "./",
     "target": "es5",
     "lib": ["dom"],
     "module": "commonjs",

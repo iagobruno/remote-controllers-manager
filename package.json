@@ -1,23 +1,47 @@
 {
   "name": "remote-controllers-manager",
-  "version": "0.3.1",
+  "version": "0.3.6",
+  "description": "An experimental package that makes easy manage devices that can act as a remote control of your web app through an websocket connection.",
   "license": "MIT",
+  "author": "Iago Bruno <httpiago@gmail.com> (https://github.com/iagobruno)",
   "repository": "github:iagobruno/remote-controllers-manager",
-  "files": [ "dist/**/*" ],
+  "bugs": {
+    "url": "https://github.com/iagobruno/remote-controllers-manager/issues"
+  },
+  "files": [
+    "server.js",
+    "client.js",
+    "client.umd.js",
+    "server.d.ts",
+    "client.d.ts"
+  ],
   "scripts": {
-    "build": "tsc --declaration",
+    "build": "rollup --config && tsc --declaration --emitDeclarationOnly",
     "prepublishOnly": "yarn run build"
   },
-  "dependencies": {
-    "socket.io-client": "^2.3.0"
-  },
-  "optionalDependencies": {
-    "socket.io": "^2.3.0"
-  },
+  "dependencies": {},
   "devDependencies": {
+    "@rollup/plugin-typescript": "^2.0.1",
     "@types/node": "^12.12.6",
     "@types/socket.io": "^2.1.4",
     "@types/socket.io-client": "^1.4.32",
+    "rollup": "^1.27.12",
+    "rollup-plugin-node-resolve": "^5.2.0",
+    "rollup-plugin-terser": "^5.1.3",
+    "tslib": "^1.10.0",
     "typescript": "^3.7.2"
-  }
+  },
+  "keywords": [
+    "realtime",
+    "websocket",
+    "typescript",
+    "server",
+    "client",
+    "browser",
+    "socket.io",
+    "esm",
+    "cjs",
+    "umd",
+    "web"
+  ]
 }

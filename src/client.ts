@@ -1,9 +1,10 @@
-import io from 'socket.io-client'
+import * as io from 'socket.io-client'
 
 type SocketIOConnectOpts = Parameters<typeof io.connect>[0];
 
 type Options = SocketIOConnectOpts & {
   uri: string;
+  io: typeof io;
 }
 
 type DeviceOptions = ControllerOptions & ScreenOptions
@@ -22,7 +23,7 @@ class Device {
 
   constructor(
     private kind: 'screen' | 'controller',
-    { uri, query, deviceId, ...options }: DeviceOptions
+    { io, uri, query, deviceId, ...options }: DeviceOptions
   ) {
     this.socket = io.connect(uri, {
       ...options,
