@@ -5,6 +5,7 @@ This package creates an abstraction on top of socket.io to easily manage devices
 **This is a super experimental package** ⚠, I'm building it for personal usage in a project but if it gets good enough may I publish a stable version on npm and write complete documentation.
 
 <!-- ![type definitions](https://img.shields.io/npm/types/remote-controllers-manager) -->
+<!-- ![Works on: Node and Browser](https://img.shields.io/badge/Works%20on-Node%20and%20Browser-lightgrey) -->
 
 Examples of apps I have in mind:
 
