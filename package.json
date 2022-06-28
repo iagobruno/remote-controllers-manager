@@ -19,7 +19,9 @@
     "build": "rollup --config && tsc --declaration --emitDeclarationOnly",
     "prepublishOnly": "yarn run build"
   },
-  "dependencies": {},
+  "dependencies": {
+    "cuid": "^2.1.8"
+  },
   "devDependencies": {
     "@rollup/plugin-typescript": "^2.0.1",
     "@types/node": "^12.12.6",

@@ -1,4 +1,4 @@
-import { Socket, Server as IOServer } from 'socket.io'
+import type { Socket, Server as IOServer } from 'socket.io'
 
 interface ServerOptions {
   /**

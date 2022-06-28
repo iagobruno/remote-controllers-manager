@@ -1,4 +1,5 @@
 import * as io from 'socket.io-client'
+import cuid from 'cuid'
 
 type SocketIOConnectOpts = Parameters<typeof io.connect>[0]
 
@@ -10,14 +11,19 @@ type Options = SocketIOConnectOpts & {
 type DeviceOptions = ControllerOptions & ScreenOptions
 
 abstract class Device {
-  /** Stable unique ID that represents this device. */
+  /**
+   * Stable unique ID that represents this device.
+   */
   public deviceId?: string
+
   /**
    * If null, means that has been configured on the server that does not require a master controller.
    * @warning Can only be used after connection has been established because it's value is fetched asynchronous.
    */
-  public masterControllerDeviceId: string | null | undefined = undefined
+  public masterControllerId: string | null | undefined = undefined
+
   private handleMasterControllerIdChange?: Function
+
   /** Instance of socket.io-client to be reused. */
   public socket: SocketIOClient.Socket
 
@@ -36,9 +42,9 @@ abstract class Device {
     })
 
     const updateMasterControllerId = (masterDeviceId: string) => {
-      this.masterControllerDeviceId = masterDeviceId
+      this.masterControllerId = masterDeviceId
       // @ts-ignore
-      if (this.kind === 'controller') this.isMasterController = (this.deviceId === masterDeviceId)
+      if (this.kind === 'controller') this.isMaster = (this.deviceId === masterDeviceId)
     }
     this.socket.once('__master_controller_id', (resMasterCId: string) => {
       updateMasterControllerId(resMasterCId)
@@ -60,10 +66,10 @@ abstract class Device {
     return this.socket.connected
   }
 
-  protected connectionPromise (): Promise<any> {
+  protected connectionPromise (): Promise<void> {
     if (this.isConnected) return Promise.resolve()
 
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const handleConnect = () => {
         removeListeners()
         resolve()
@@ -87,7 +93,7 @@ abstract class Device {
    * Get called when this device disconnects and reconnects to server.
    * @returns A function to remove the listener.
    */
-  onDeviceConnectionStateChange (callback: (state: boolean) => void): UnsubscribeFunction {
+  onDeviceConnectionStateChanged (callback: (state: boolean) => void): UnsubscribeFunction {
     const handler = () => {
       callback(this.socket.connected)
     }
@@ -105,7 +111,7 @@ abstract class Device {
    * Get called when the server sets another controller as the master.
    * @returns A function to remove the listener.
    */
-  onMasterControllerIdChange (callback: Function): UnsubscribeFunction {
+  onMasterControllerIdChanged (callback: Function): UnsubscribeFunction {
     this.handleMasterControllerIdChange = callback
 
     return () => {
@@ -114,22 +120,20 @@ abstract class Device {
   }
 
   /**
-   * Send message to master controller.
-   * @template D = Type of the first argument "data".
+   * Send a command to master controller.
    */
   sendToMasterController<D = any> (data: D) {
-    if (!this.masterControllerDeviceId) return
+    if (!this.masterControllerId) return
 
     this.socket.emit('sendTo', {
-      recipientDevice: this.masterControllerDeviceId,
+      recipientDevice: this.masterControllerId,
       data,
     })
   }
 
   /**
-   * Get called when a new message arrives from another device.
+   * Get called when a new command arrives from another device.
    * @returns A function to remove the listener.
-   * @template D = Type of the argument "data".
    */
   onMessage<D = any> (
     callback: (data: D, fromDeviceId: string) => void
@@ -162,10 +166,10 @@ export class Screen extends Device {
       this.connectedControllers = new Set(ids)
       this.checkIsReady()
     })
-    this.socket.on('__new_controller', (deviceId) => {
+    this.onConnect((deviceId) => {
       this.connectedControllers?.add(deviceId)
     })
-    this.socket.on('__controller_disconnect', (deviceId) => {
+    this.onDisconnect((deviceId) => {
       this.connectedControllers?.delete(deviceId)
     })
 
@@ -176,13 +180,13 @@ export class Screen extends Device {
    * Start connection.
    * @returns A promise to indicate if the connection was successful.
    */
-  public start (): Promise<any> {
-    if (this.isConnected) return Promise.resolve('You are already connected.')
+  public start (): Promise<void> {
+    if (this.isConnected) return Promise.resolve()
 
     this.socket.connect()
 
     return this.connectionPromise()
-      .then(() => new Promise(resolve => {
+      .then(() => new Promise<void>(resolve => {
         if (this.isReady) return resolve()
         this.onReadyHandler = resolve
       }))
@@ -192,7 +196,7 @@ export class Screen extends Device {
     if (this.isReady) return
     if (
       this.connectedControllers !== null &&
-      this.masterControllerDeviceId !== undefined &&
+      this.masterControllerId !== undefined &&
       this.socket.connected === true &&
       this.deviceId !== undefined
     ) {
@@ -209,7 +213,9 @@ export class Screen extends Device {
     return Array.from(this.connectedControllers?.values()!)
   }
 
-  /** @warning Can only be used after "start" function because it's value is fetched asynchronous. */
+  /**
+   * @warning Can only be used after "start" function because it's value is fetched asynchronous.
+   */
   get totalOfConnectedControllers () {
     return this.connectedControllers?.size
   }
@@ -239,16 +245,14 @@ export class Screen extends Device {
   }
 
   /**
-   * Send message to all connected controllers.
-   * @template D = Type of the first argument "data".
+   * Send a command to all connected controllers.
    */
   broadcastToControllers<D = any> (data: D) {
     this.socket.emit('broadcast', { data })
   }
 
   /**
-   * Send message to a specific controller.
-   * @template D = Type of the second argument "data".
+   * Send a command to a specific controller.
    */
   sendToController<D = any> (deviceId: string, data: D) {
     this.socket.emit('sendTo', {
@@ -259,22 +263,27 @@ export class Screen extends Device {
 }
 
 
-interface ControllerOptions extends Options {
-  /** Unique ID generated by you to this device. If you do not specify one, a random will be generated. */
-  deviceId?: string,
-}
+interface ControllerOptions extends Options { }
 
 export class Controller extends Device {
-  /** @warning Can only be used after "connectToScreen" function because it's value is fetched asynchronous. */
-  public isMasterController: boolean | null = null
-  public idOfScreenWhichIsConnectedTo: string | null = null
-  /** @warning Can only be used after "connectToScreen" function because it's value is fetched asynchronous. */
+  /**
+   * @warning Can only be used after "connectToScreen" function because it's value is fetched asynchronous.
+   */
+  public isMaster: boolean | null = null
+
+  /** Id of screen which is connected to. */
+  public screenId: string | null = null
+
+  /** 
+   * @warning Can only be used after "connectToScreen" function because it's value is fetched asynchronous.
+   */
   public isScreenConnected: boolean | null = null
+
   private handleScreenConnectionChange?: Function
 
   constructor(options: ControllerOptions) {
     super('controller', options as any)
-    this.deviceId = options.deviceId ?? getDeviceId()
+    this.deviceId = getDeviceId()
 
     this.socket.io.opts.query = Object.assign(this.socket.io.opts.query, {
       deviceId: this.deviceId
@@ -303,7 +312,7 @@ export class Controller extends Device {
    * @returns A promise to indicate if the connection was successful.
    */
   public connectToScreen (screenId: string): Promise<any> {
-    if (this.isConnected) return Promise.resolve('You are already connected.')
+    if (this.isConnected) return Promise.resolve()
 
     this.socket.io.opts.query = Object.assign(this.socket.io.opts.query, {
       roomIdToConnect: screenId
@@ -312,9 +321,9 @@ export class Controller extends Device {
 
     return this.connectionPromise()
       .then(() => {
-        this.idOfScreenWhichIsConnectedTo = screenId
+        this.screenId = screenId
       })
-      .then(() => new Promise(resolve => {
+      .then(() => new Promise<void>(resolve => {
         if (this.isReady) return resolve()
         this.onReadyHandler = resolve
       }))
@@ -323,8 +332,8 @@ export class Controller extends Device {
   private checkIsReady () {
     if (this.isReady) return
     if (
-      this.masterControllerDeviceId !== undefined &&
-      this.isMasterController !== null &&
+      this.masterControllerId !== undefined &&
+      this.isMaster !== null &&
       this.isScreenConnected !== null &&
       this.socket.connected === true
     ) {
@@ -338,11 +347,11 @@ export class Controller extends Device {
    * @returns A function to remove the listener.
    *
    * @example
-   * controller.onScreenConnectionStateChange(isConnected => {
+   * controller.onScreenConnectionStateChanged(isConnected => {
    *   // ...
    * })
    */
-  onScreenConnectionStateChange (callback: (state: boolean) => void): UnsubscribeFunction {
+  onScreenConnectionStateChanged (callback: (state: boolean) => void): UnsubscribeFunction {
     this.handleScreenConnectionChange = callback
 
     return () => {
@@ -351,8 +360,7 @@ export class Controller extends Device {
   }
 
   /**
-   * Send message to screen.
-   * @template D = Type of the first argument "data".
+   * Send a command to screen.
    */
   sendToScreen<D = any> (data: D) {
     this.socket.emit('sendTo', {
@@ -364,8 +372,7 @@ export class Controller extends Device {
   /**
    * @experimental I don't know if this function is useful or if it opens security vulnerabilities.
    *
-   * Send message to all other connected controls except this one.
-   * @template D = Type of the first argument "data".
+   * Send a command to all other connected controls except this one.
    */
   unsafe_broadcastToOtherControllers<D = any> (data: D) {
     this.socket.emit('broadcast', {
@@ -377,8 +384,7 @@ export class Controller extends Device {
   /**
    * @experimental I don't know if this function is useful or if it opens security vulnerabilities.
    *
-   * Send message to another specific controller.
-   * @template D = Type of the second argument "data".
+   * Send a command to another specific controller.
    */
   unsafe_sendToAnotherController<D = any> (deviceId: string, data: D) {
     this.socket.emit('sendTo', {
@@ -393,11 +399,9 @@ type UnsubscribeFunction = () => void
 
 function getDeviceId () {
   const savedDeviceId = localStorage.getItem('uq_device_id')
-  if (savedDeviceId !== null) {
-    return savedDeviceId
-  } else {
-    const newDeviceId = Date.now() + Math.random().toString(36).substr(2, 9)
-    localStorage.setItem('uq_device_id', newDeviceId)
-    return newDeviceId
-  }
+  if (savedDeviceId) return savedDeviceId
+
+  const newDeviceId = cuid()
+  localStorage.setItem('uq_device_id', newDeviceId)
+  return newDeviceId
 }
